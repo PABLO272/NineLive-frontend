@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "Ninelive",
+    "slug": "ninelive",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Ninelive to access your camera so you can go live."
+        }
+      ]
+    ],
+    "assetBundlePatterns": [
+      "**/*"
+    ]
+  }
+}

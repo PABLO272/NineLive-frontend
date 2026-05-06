@@ -1,0 +1,49 @@
+Starting project at C:\Users\Dell\Downloads\ninelive_temp_build\ninelive_temp_build\ninelive\apps\mobile
+Starting Metro Bundler
+warning: Bundler cache is empty, rebuilding (this may take a minute)
+Waiting on http://localhost:8081
+Logs for your project will appear below.
+Android apps\mobile\index.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android apps\mobile\index.js ▓▓░░░░░░░░░░░░░░ 13.7% ( 70/231)
+Android apps\mobile\index.js ▓▓▓▓▓▓▓▓▓▓▓▓░░░░ 77.4% (491/559)
+Android apps\mobile\index.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 99.9% (768/768)
+Android Bundled 11255ms apps\mobile\index.js (768 modules)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+Android apps\mobile\index.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 66ms apps\mobile\index.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+Android apps\mobile\index.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 79ms apps\mobile\index.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ ERROR  [ReferenceError: Property 'viewerRoomLandscape' doesn't exist]
+ WARN  setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.
+ WARN  setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.
+ WARN  setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.
+ WARN  setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.
+ WARN  setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.
+ WARN  setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.
+ WARN  setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.
+ WARN  setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.
+ WARN  setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.
+ WARN  setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.
+ WARN  setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.
+ WARN  setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.
+ WARN  setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.
+ WARN  setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.
+ WARN  setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.
+ WARN  setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.
+ WARN  setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.
+ WARN  setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.
+ WARN  setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.
+ WARN  setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.
+ WARN  setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.
+ WARN  setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.
+ WARN  setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.
+ WARN  setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.
+ WARN  setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.
+ WARN  setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.
+ WARN  setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.
+ WARN  setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.
+ WARN  setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.
+ WARN  setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.
+ WARN  setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.

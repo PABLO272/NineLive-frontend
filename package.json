@@ -1,0 +1,22 @@
+{
+  "name": "ninelive",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Ninelive greenfield monorepo",
+  "workspaces": [
+    "apps/*",
+    "services/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "mobile:start": "npm --workspace apps/mobile run start",
+    "mobile:start:clear": "npm --workspace apps/mobile run start -- --clear",
+    "mobile:start:offline": "cd apps/mobile && set \"EXPO_OFFLINE=true\" && npx expo start -c",
+    "mobile:start:tunnel": "cd apps/mobile && npx expo start --tunnel -c",
+    "api:dev": "npm --workspace services/api run dev",
+    "typecheck": "npm --workspace packages/shared run build && npm --workspace services/api run typecheck && npm --workspace apps/mobile run typecheck"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
