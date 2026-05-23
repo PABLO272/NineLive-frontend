@@ -11,6 +11,12 @@
         {
           "cameraPermission": "Allow Ninelive to access your camera so you can go live."
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow Ninelive to access your location to sort Live Shops near you."
+        }
       ]
     ],
     "assetBundlePatterns": [

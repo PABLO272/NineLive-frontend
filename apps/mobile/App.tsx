@@ -85,6 +85,9 @@ type LiveShop = {
 };
 
 const RESERVATION_WINDOW_MS = 10 * 60 * 1000;
+const SHOP_BELL_WINDOW_MS = 30 * 1000;
+const SHOP_BELL_MAX_TAPS = 4;
+const SHOP_BELL_TIMEOUT_MS = 60 * 1000;
 const ThemeModeContext = React.createContext<boolean>(true);
 const DEFAULT_USER_LOCATION = { lat: 26.2235, lng: 50.5876 };
 const LIVE_SHOPS: LiveShop[] = [
@@ -418,6 +421,9 @@ export default function App() {
   const [waitingUntil, setWaitingUntil] = React.useState<number | null>(null);
   const [waitingTick, setWaitingTick] = React.useState(0);
   const [shopSessionReminders, setShopSessionReminders] = React.useState<Record<string, boolean>>({});
+  const [shopBellRings, setShopBellRings] = React.useState<Record<string, number>>({});
+  const [shopBellTapLog, setShopBellTapLog] = React.useState<Record<string, number[]>>({});
+  const [shopBellMutedUntil, setShopBellMutedUntil] = React.useState<Record<string, number>>({});
   const [searchModalVisible, setSearchModalVisible] = React.useState(false);
   const [streams, setStreams] = React.useState<LiveStream[]>(sampleFeed.streams);
   const [followedStreamers, setFollowedStreamers] = React.useState<Record<string, boolean>>({});
@@ -428,6 +434,7 @@ export default function App() {
 
   const [tokenBalance, setTokenBalance] = React.useState(1800);
   const [tokenRechargeVisible, setTokenRechargeVisible] = React.useState(false);
+  const [checkoutDetailsVisible, setCheckoutDetailsVisible] = React.useState(false);
   const [selectedRechargeTokens, setSelectedRechargeTokens] = React.useState(800);
   const [paymentMethod, setPaymentMethod] = React.useState<"card" | "apple" | "google">("card");
   const [useCustomRecharge, setUseCustomRecharge] = React.useState(false);
@@ -467,6 +474,21 @@ export default function App() {
   const [profileSetupAvatarUrl, setProfileSetupAvatarUrl] = React.useState("");
   const [emailAlerts, setEmailAlerts] = React.useState(true);
   const [pushAlerts, setPushAlerts] = React.useState(true);
+  const [privateAccount, setPrivateAccount] = React.useState(false);
+  const [twoFactorAuth, setTwoFactorAuth] = React.useState(false);
+  const [profileDrawerVisible, setProfileDrawerVisible] = React.useState(false);
+  const [profileDrawerSection, setProfileDrawerSection] = React.useState<"menu" | "wallet" | "settings" | "orders">("menu");
+  const [profileEditVisible, setProfileEditVisible] = React.useState(false);
+  const [editDisplayName, setEditDisplayName] = React.useState(displayName);
+  const [editUsername, setEditUsername] = React.useState(username);
+  const [editBio, setEditBio] = React.useState(bio);
+  const [editAvatarUrl, setEditAvatarUrl] = React.useState(profileAvatar);
+  const [shippingFullName, setShippingFullName] = React.useState("");
+  const [shippingPhone, setShippingPhone] = React.useState("");
+  const [shippingCountry, setShippingCountry] = React.useState("");
+  const [shippingCity, setShippingCity] = React.useState("");
+  const [shippingAddressLine, setShippingAddressLine] = React.useState("");
+  const [shippingNotes, setShippingNotes] = React.useState("");
   const [activeLiveStreamId, setActiveLiveStreamId] = React.useState<string | null>(null);
   const [liveStartedAt, setLiveStartedAt] = React.useState<number | null>(null);
   const [liveChat, setLiveChat] = React.useState<ChatMessage[]>([]);
@@ -705,6 +727,34 @@ export default function App() {
     }
     setSelectedStreamId(matched.id);
   }, [selectedLiveShop, streams]);
+
+  const ringShopBell = React.useCallback(() => {
+    if (!selectedLiveShopId) {
+      return;
+    }
+    const now = Date.now();
+    const mutedUntil = shopBellMutedUntil[selectedLiveShopId] ?? 0;
+    if (mutedUntil > now) {
+      const waitSec = Math.ceil((mutedUntil - now) / 1000);
+      Alert.alert("Bell cooldown", `Please wait ${waitSec}s before ringing again.`);
+      return;
+    }
+
+    const recentTaps = (shopBellTapLog[selectedLiveShopId] ?? []).filter((t) => now - t <= SHOP_BELL_WINDOW_MS);
+    if (recentTaps.length >= SHOP_BELL_MAX_TAPS) {
+      setShopBellMutedUntil((prev) => ({ ...prev, [selectedLiveShopId]: now + SHOP_BELL_TIMEOUT_MS }));
+      setShopBellTapLog((prev) => ({ ...prev, [selectedLiveShopId]: [] }));
+      Alert.alert("Too many bell taps", "Bell is temporarily disabled for 60 seconds.");
+      return;
+    }
+
+    setShopBellTapLog((prev) => ({
+      ...prev,
+      [selectedLiveShopId]: [...recentTaps, now]
+    }));
+    setShopBellRings((prev) => ({ ...prev, [selectedLiveShopId]: (prev[selectedLiveShopId] ?? 0) + 1 }));
+    Alert.alert("Bell sent", "Merchant received your bell request.");
+  }, [selectedLiveShopId, shopBellMutedUntil, shopBellTapLog]);
 
   const screenTransition = React.useRef(new Animated.Value(1)).current;
   const livePulse = React.useRef(new Animated.Value(0)).current;
@@ -1281,13 +1331,21 @@ export default function App() {
     });
   };
 
-  const checkout = () => {
+  const openCheckoutDetails = () => {
     if (reservations.length === 0) {
       Alert.alert("Cart is empty", "Reserve items from live streams first.");
       return;
     }
     if (reservedTokens > tokenBalance) {
       Alert.alert("Not enough Cat Coins", "Your wallet balance is below the reservation total.");
+      return;
+    }
+    setCheckoutDetailsVisible(true);
+  };
+
+  const confirmCheckout = () => {
+    if (!shippingFullName.trim() || !shippingPhone.trim() || !shippingCountry.trim() || !shippingCity.trim() || !shippingAddressLine.trim()) {
+      Alert.alert("Missing address info", "Please complete your shipping details before confirming.");
       return;
     }
     runSmoothLayout();
@@ -1301,7 +1359,41 @@ export default function App() {
     setOrders((prev) => [order, ...prev]);
     setTokenBalance((prev) => prev - reservedTokens);
     setReservations([]);
+    setCheckoutDetailsVisible(false);
     Alert.alert("Purchase complete", `${reservedTokens} Cat Coins charged. Items are now yours.`);
+  };
+
+  const openProfileEditor = () => {
+    setEditDisplayName(displayName);
+    setEditUsername(username);
+    setEditBio(bio);
+    setEditAvatarUrl(profileAvatar);
+    setProfileEditVisible(true);
+  };
+
+  const saveProfileEdits = () => {
+    const cleanUser = normalizeUsername(editUsername);
+    if (!editDisplayName.trim()) {
+      Alert.alert("Missing name", "Please enter your display name.");
+      return;
+    }
+    if (cleanUser.length < 3) {
+      Alert.alert("Invalid username", "Username should be at least 3 characters.");
+      return;
+    }
+    if (!editBio.trim()) {
+      Alert.alert("Missing bio", "Please add a short bio.");
+      return;
+    }
+    if (!editAvatarUrl.trim()) {
+      Alert.alert("Missing photo", "Please choose a profile photo.");
+      return;
+    }
+    setDisplayName(editDisplayName.trim());
+    setUsername(cleanUser);
+    setBio(editBio.trim());
+    setProfileAvatar(editAvatarUrl.trim());
+    setProfileEditVisible(false);
   };
 
   const buyTokenPack = (amount: number) => {
@@ -1701,13 +1793,13 @@ export default function App() {
     const following = isFollowing(item.streamer.id);
 
     return (
-      <View style={styles.liveCard}>
+      <View style={[styles.liveCard, !isDarkMode ? styles.liveCardLight : null]}>
         <View style={styles.liveCardHeader}>
           <View style={styles.hostSection}>
             <Image source={{ uri: item.streamer.avatarUrl }} style={styles.hostAvatar} />
             <View style={styles.hostMeta}>
-              <Text style={styles.hostName}>{item.streamer.displayName}</Text>
-              <Text style={styles.hostHandle}>@{item.streamer.displayName.replace(/\s+/g, "").toLowerCase()}</Text>
+              <Text style={[styles.hostName, !isDarkMode ? styles.hostNameLight : null]}>{item.streamer.displayName}</Text>
+              <Text style={[styles.hostHandle, !isDarkMode ? styles.hostHandleLight : null]}>@{item.streamer.displayName.replace(/\s+/g, "").toLowerCase()}</Text>
             </View>
           </View>
           <View style={styles.liveCardBadges}>
@@ -1727,7 +1819,7 @@ export default function App() {
           </View>
         </View>
 
-        <TouchableOpacity style={styles.previewBox} onPress={() => openStreamRoom(item.id)}>
+        <TouchableOpacity style={[styles.previewBox, !isDarkMode ? styles.previewBoxLight : null]} onPress={() => openStreamRoom(item.id)}>
           <Image source={{ uri: background }} style={styles.previewImage} />
           <View style={styles.previewOverlay} />
           <View style={styles.previewFooter}>
@@ -1740,15 +1832,15 @@ export default function App() {
           </View>
         </TouchableOpacity>
 
-        <Text style={styles.cardCategory}>{item.category}</Text>
-        <Text style={styles.caption}>Limited products are reserved instantly for buyers with enough Cat Coins.</Text>
+        <Text style={[styles.cardCategory, !isDarkMode ? styles.cardCategoryLight : null]}>{item.category}</Text>
+        <Text style={[styles.caption, !isDarkMode ? styles.captionLight : null]}>Limited products are reserved instantly for buyers with enough Cat Coins.</Text>
 
         <View style={styles.cardActionsRow}>
           <TouchableOpacity
             onPress={() => toggleFollow(item.streamer.id)}
             style={[styles.followButton, following ? styles.followingButton : styles.followCtaButton]}
           >
-            <Text style={styles.followButtonText}>{following ? "Following" : "Follow Streamer"}</Text>
+            <Text style={[styles.followButtonText, following && !isDarkMode ? styles.followButtonTextLight : null]}>{following ? "Following" : "Follow Streamer"}</Text>
           </TouchableOpacity>
         </View>
 
@@ -1756,8 +1848,8 @@ export default function App() {
           {item.featuredProducts.map((product) => {
             const stock = getStock(item.id, product.id);
             return (
-              <TouchableOpacity key={product.id} style={styles.productMiniCard} onPress={() => reserveProduct(item, product)}>
-                <Text style={styles.productMiniTitle} numberOfLines={1}>
+              <TouchableOpacity key={product.id} style={[styles.productMiniCard, !isDarkMode ? styles.productMiniCardLight : null]} onPress={() => reserveProduct(item, product)}>
+                <Text style={[styles.productMiniTitle, !isDarkMode ? styles.productMiniTitleLight : null]} numberOfLines={1}>
                   {product.title}
                 </Text>
                 <Text style={styles.productMiniPrice}>{product.price} Cat Coins</Text>
@@ -2030,33 +2122,27 @@ export default function App() {
           {!selectedStream ? (
             <View style={[styles.homeHeaderWrap, { backgroundColor: ui.appBg }]}>
               <View style={styles.topBar}>
-                <Text style={[styles.brand, { color: ui.label }]}>NINELIVE</Text>
+                <View style={styles.topBarSide}>
+                  <Text style={[styles.brand, { color: ui.label }]}>NINELIVE</Text>
+                </View>
                 <View style={styles.tabs}>
                   <View style={styles.feedTabRow}>
-                    <TouchableOpacity onPress={() => setHomeFeedTab("explore")} style={styles.feedTabButton}>
+                    <TouchableOpacity onPress={() => setHomeFeedTab("explore")} style={[styles.feedTabButton, homeFeedTab === "explore" ? styles.feedTabButtonActive : null]}>
                       <Text style={homeFeedTab === "explore" ? [styles.activeTab, !isDarkMode ? styles.activeTabLight : null] : [styles.inactiveTab, !isDarkMode ? styles.inactiveTabLight : null]}>Explore</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => setHomeFeedTab("following")} style={styles.feedTabButton}>
+                    <TouchableOpacity onPress={() => setHomeFeedTab("following")} style={[styles.feedTabButton, homeFeedTab === "following" ? styles.feedTabButtonActive : null]}>
                       <Text style={homeFeedTab === "following" ? [styles.activeTab, !isDarkMode ? styles.activeTabLight : null] : [styles.inactiveTab, !isDarkMode ? styles.inactiveTabLight : null]}>Following</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => setHomeFeedTab("forYou")} style={styles.feedTabButton}>
+                    <TouchableOpacity onPress={() => setHomeFeedTab("forYou")} style={[styles.feedTabButton, homeFeedTab === "forYou" ? styles.feedTabButtonActive : null]}>
                       <Text style={homeFeedTab === "forYou" ? [styles.activeTab, !isDarkMode ? styles.activeTabLight : null] : [styles.inactiveTab, !isDarkMode ? styles.inactiveTabLight : null]}>For You</Text>
                     </TouchableOpacity>
                   </View>
-                  <View
-                    style={[
-                      styles.tabIndicator,
-                      homeFeedTab === "explore"
-                        ? styles.tabIndicatorExplore
-                        : homeFeedTab === "forYou"
-                          ? styles.tabIndicatorForYou
-                          : styles.tabIndicatorFollowing
-                    ]}
-                  />
                 </View>
-                <TouchableOpacity style={[styles.searchBtn, { borderColor: ui.outline }]} onPress={() => setSearchModalVisible(true)}>
-                  <Text style={[styles.searchLabel, { color: ui.label }]}>Search</Text>
-                </TouchableOpacity>
+                <View style={[styles.topBarSide, styles.topBarSideRight]}>
+                  <TouchableOpacity style={[styles.searchBtn, { borderColor: ui.outline }]} onPress={() => setSearchModalVisible(true)}>
+                    <Text style={[styles.searchLabel, { color: ui.label }]}>Search</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
               <View style={styles.tokenPill}>
                 <CatCoinIcon size={15} />
@@ -2290,7 +2376,7 @@ export default function App() {
                     <View style={styles.searchSheetHeader}>
                       <Text style={[styles.searchSheetTitle, { color: surfaces.title }]}> Live Orders</Text>
                       <TouchableOpacity onPress={() => setLiveOrdersVisible(false)}>
-                        <Ionicons name="close" size={22} color="#fff" />
+                        <Ionicons name="close" size={22} color={surfaces.title} />
                       </TouchableOpacity>
                     </View>
                     <View style={styles.liveOrdersStats}>
@@ -2304,18 +2390,18 @@ export default function App() {
                         <Text style={styles.emptyRecentText}>No queue activity yet.</Text>
                       ) : (
                         activeLiveQueue.map((entry) => (
-                          <View key={entry.id} style={styles.queueItem}>
+                          <View key={entry.id} style={[styles.queueItem, !isDarkMode ? styles.queueItemLight : null]}>
                             <View>
-                              <Text style={styles.queueBuyer}>
+                              <Text style={[styles.queueBuyer, !isDarkMode ? styles.queueBuyerLight : null]}>
                                 {entry.buyerName} Â· {entry.type === "ordered" ? "Purchased" : "Reserved"}
                               </Text>
-                              <Text style={styles.queueMeta}>
+                              <Text style={[styles.queueMeta, !isDarkMode ? styles.queueMetaLight : null]}>
                                 {entry.productTitle} x{entry.quantity}
                               </Text>
                             </View>
                             <View style={styles.queueRight}>
                               <Text style={styles.queueTokens}>{entry.tokens} Cat Coins</Text>
-                              <Text style={styles.queueTime}>{new Date(entry.at).toLocaleTimeString()}</Text>
+                              <Text style={[styles.queueTime, !isDarkMode ? styles.queueTimeLight : null]}>{new Date(entry.at).toLocaleTimeString()}</Text>
                             </View>
                           </View>
                         ))
@@ -2337,22 +2423,22 @@ export default function App() {
                     <View style={styles.searchSheetHeader}>
                       <Text style={[styles.searchSheetTitle, { color: surfaces.title }]}> Live Settings</Text>
                       <TouchableOpacity onPress={() => setLiveSettingsVisible(false)}>
-                        <Ionicons name="close" size={22} color="#fff" />
+                        <Ionicons name="close" size={22} color={surfaces.title} />
                       </TouchableOpacity>
                     </View>
                     <ScrollView contentContainerStyle={styles.liveSettingsContent}>
-                      <View style={styles.cameraControls}>
-                        <TouchableOpacity style={styles.cameraControlBtn} onPress={toggleCameraFacing}>
-                          <Ionicons name="camera-reverse-outline" size={18} color="#fff" />
-                          <Text style={styles.cameraControlText}>Flip</Text>
+                      <View style={[styles.cameraControls, !isDarkMode ? styles.cameraControlsLight : null]}>
+                        <TouchableOpacity style={[styles.cameraControlBtn, !isDarkMode ? styles.cameraControlBtnLight : null]} onPress={toggleCameraFacing}>
+                          <Ionicons name="camera-reverse-outline" size={18} color={isDarkMode ? "#fff" : "#111"} />
+                          <Text style={[styles.cameraControlText, !isDarkMode ? styles.cameraControlTextLight : null]}>Flip</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.cameraControlBtn} onPress={() => setMicMuted((prev) => !prev)}>
-                          <Ionicons name={micMuted ? "mic-off-outline" : "mic-outline"} size={18} color="#fff" />
-                          <Text style={styles.cameraControlText}>{micMuted ? "Muted" : "Mic On"}</Text>
+                        <TouchableOpacity style={[styles.cameraControlBtn, !isDarkMode ? styles.cameraControlBtnLight : null]} onPress={() => setMicMuted((prev) => !prev)}>
+                          <Ionicons name={micMuted ? "mic-off-outline" : "mic-outline"} size={18} color={isDarkMode ? "#fff" : "#111"} />
+                          <Text style={[styles.cameraControlText, !isDarkMode ? styles.cameraControlTextLight : null]}>{micMuted ? "Muted" : "Mic On"}</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.cameraControlBtn} onPress={() => setSaveReplay((prev) => !prev)}>
-                          <Ionicons name={saveReplay ? "save-outline" : "save"} size={18} color="#fff" />
-                          <Text style={styles.cameraControlText}>{saveReplay ? "Replay On" : "Replay Off"}</Text>
+                        <TouchableOpacity style={[styles.cameraControlBtn, !isDarkMode ? styles.cameraControlBtnLight : null]} onPress={() => setSaveReplay((prev) => !prev)}>
+                          <Ionicons name={saveReplay ? "save-outline" : "save"} size={18} color={isDarkMode ? "#fff" : "#111"} />
+                          <Text style={[styles.cameraControlText, !isDarkMode ? styles.cameraControlTextLight : null]}>{saveReplay ? "Replay On" : "Replay Off"}</Text>
                         </TouchableOpacity>
                       </View>
 
@@ -2656,26 +2742,26 @@ export default function App() {
                   <View key={line.id} style={[styles.cartItemCard, { backgroundColor: surfaces.cardBg, borderColor: surfaces.cardBorder }]}>
                     <Image source={{ uri: line.product.imageUrl }} style={styles.cartItemImage} />
                     <View style={styles.cartItemMeta}>
-                      <Text style={styles.cartItemTitle} numberOfLines={1}>
+                      <Text style={[styles.cartItemTitle, { color: surfaces.title }]} numberOfLines={1}>
                         {line.product.title}
                       </Text>
                       <Text style={styles.cartItemPrice}>{line.product.price} Cat Coins each</Text>
-                      <Text style={styles.cartItemSubtotal}>{line.product.price * line.quantity} Cat Coins total</Text>
-                      <Text style={styles.cartItemStream}>{stream?.title ?? "Live stream"}</Text>
+                      <Text style={[styles.cartItemSubtotal, { color: surfaces.title }]}>{line.product.price * line.quantity} Cat Coins total</Text>
+                      <Text style={[styles.cartItemStream, { color: surfaces.body }]}>{stream?.title ?? "Live stream"}</Text>
                       <Text style={styles.countdownText}>
                         Reserved: {formatCountdown(line.reservedUntil - Date.now())}
                       </Text>
                     </View>
                     <View style={styles.qtyColumn}>
-                      <TouchableOpacity style={styles.qtyButton} onPress={() => changeReservationQuantity(line.id, 1)}>
-                        <Text style={styles.qtyButtonText}>+</Text>
+                      <TouchableOpacity style={[styles.qtyButton, !isDarkMode ? styles.qtyButtonLight : null]} onPress={() => changeReservationQuantity(line.id, 1)}>
+                        <Text style={[styles.qtyButtonText, !isDarkMode ? styles.qtyButtonTextLight : null]}>+</Text>
                       </TouchableOpacity>
-                      <Text style={styles.qtyValue}>{line.quantity}</Text>
-                      <TouchableOpacity style={styles.qtyButton} onPress={() => changeReservationQuantity(line.id, -1)}>
-                        <Text style={styles.qtyButtonText}>-</Text>
+                      <Text style={[styles.qtyValue, { color: surfaces.title }]}>{line.quantity}</Text>
+                      <TouchableOpacity style={[styles.qtyButton, !isDarkMode ? styles.qtyButtonLight : null]} onPress={() => changeReservationQuantity(line.id, -1)}>
+                        <Text style={[styles.qtyButtonText, !isDarkMode ? styles.qtyButtonTextLight : null]}>-</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity style={styles.releaseButton} onPress={() => releaseReservation(line.id)}>
-                        <Text style={styles.releaseText}>Release</Text>
+                      <TouchableOpacity style={[styles.releaseButton, !isDarkMode ? styles.releaseButtonLight : null]} onPress={() => releaseReservation(line.id)}>
+                        <Text style={[styles.releaseText, !isDarkMode ? styles.releaseTextLight : null]}>Release</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -2683,7 +2769,7 @@ export default function App() {
               })
             )}
 
-            <TouchableOpacity style={styles.goLiveButton} onPress={checkout}>
+            <TouchableOpacity style={styles.goLiveButton} onPress={openCheckoutDetails}>
               <Text style={styles.goLiveButtonText}>Checkout ({reservedTokens} Cat Coins)</Text>
             </TouchableOpacity>
           </ScrollView>
@@ -2693,132 +2779,256 @@ export default function App() {
 
       {activeTab === "profile" ? (
         <Animated.View style={[styles.profileTabScreen, screenTransitionStyle, { backgroundColor: ui.sectionBg }]}>
-        <SafeAreaView style={[styles.profileTabScreen, { backgroundColor: ui.sectionBg }]}>
-          <ScrollView contentContainerStyle={styles.profileTabContent}>
-            <View style={[styles.profileHero, { backgroundColor: surfaces.cardBg, borderColor: surfaces.cardBorder }]}>
-              <Image source={{ uri: profileAvatar }} style={styles.profileHeroAvatar} />
-              <Text style={[styles.profileHeroName, { color: surfaces.title }]}>{displayName}</Text>
-              <Text style={[styles.profileHeroHandle, { color: isDarkMode ? "#9fcfff" : "#2f6ea7" }]}>@{username}</Text>
-              <Text style={[styles.profileHeroBio, { color: surfaces.body }]}>{bio}</Text>
-              <TouchableOpacity
-                style={styles.profileSignOutButton}
-                onPress={() => {
-                  setAuthUser(null);
-                  setProfileSetupNeeded(false);
-                  setAuthMode("welcome");
-                }}
-              >
-                <Text style={styles.profileSignOutText}>Sign Out</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={[styles.walletCard, { backgroundColor: surfaces.cardBg, borderColor: surfaces.cardBorder }]}>
-              <View style={styles.walletHeader}>
-                <View style={styles.walletTitleRow}>
-                  <CatCoinIcon size={18} />
-                  <Text style={[styles.walletTitle, { color: surfaces.title }]}>Cat Coins Wallet</Text>
+          <SafeAreaView style={[styles.profileTabScreen, { backgroundColor: ui.sectionBg }]}>
+            <ScrollView contentContainerStyle={styles.profileTabContent}>
+              <View style={[styles.profileHero, { backgroundColor: surfaces.cardBg, borderColor: surfaces.cardBorder }]}>
+                <Image source={{ uri: profileAvatar }} style={styles.profileHeroAvatar} />
+                <Text style={[styles.profileHeroName, { color: surfaces.title }]}>{displayName}</Text>
+                <Text style={[styles.profileHeroHandle, { color: isDarkMode ? "#9fcfff" : "#2f6ea7" }]}>@{username}</Text>
+                <Text style={[styles.profileHeroBio, { color: surfaces.body }]}>{bio}</Text>
+                <View style={styles.profileHeroActionRow}>
+                  <TouchableOpacity style={styles.profileEditButton} onPress={openProfileEditor}>
+                    <Ionicons name="create-outline" size={14} color="#fff" />
+                    <Text style={styles.profileEditButtonText}>Edit Profile</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.profileGhostButton, { borderColor: surfaces.cardBorder }]}
+                    onPress={() => {
+                      setProfileDrawerSection("wallet");
+                      setProfileDrawerVisible(true);
+                    }}
+                  >
+                    <Ionicons name="wallet-outline" size={14} color={isDarkMode ? "#e8e8e8" : "#222"} />
+                    <Text style={[styles.profileGhostButtonText, { color: surfaces.title }]}>Wallet</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.profileGhostButton, { borderColor: surfaces.cardBorder }]}
+                    onPress={() => {
+                      setProfileDrawerSection("settings");
+                      setProfileDrawerVisible(true);
+                    }}
+                  >
+                    <Ionicons name="settings-outline" size={14} color={isDarkMode ? "#e8e8e8" : "#222"} />
+                    <Text style={[styles.profileGhostButtonText, { color: surfaces.title }]}>Settings</Text>
+                  </TouchableOpacity>
                 </View>
-                <Text style={styles.walletBalance}>{tokenBalance} Cat Coins</Text>
-              </View>
-              <Text style={[styles.walletSubtext, { color: surfaces.body }]}>Buy Cat Coins packs and use them to reserve live items instantly.</Text>
-              <View style={styles.tokenPackRow}>
-                <TouchableOpacity style={styles.tokenPackButton} onPress={() => openTokenRecharge(300)}>
-                  <Text style={styles.tokenPackLabel}>+300 â€¢ $4.99</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.tokenPackButton} onPress={() => openTokenRecharge(800)}>
-                  <Text style={styles.tokenPackLabel}>+800 â€¢ $11.99</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.tokenPackButton} onPress={() => openTokenRecharge(1500)}>
-                  <Text style={styles.tokenPackLabel}>+1500 â€¢ $19.99</Text>
+                <TouchableOpacity
+                  style={styles.profileSignOutButton}
+                  onPress={() => {
+                    setAuthUser(null);
+                    setProfileSetupNeeded(false);
+                    setAuthMode("welcome");
+                  }}
+                >
+                  <Text style={styles.profileSignOutText}>Sign Out</Text>
                 </TouchableOpacity>
               </View>
-              <TouchableOpacity style={styles.walletRechargeButton} onPress={() => openTokenRecharge(selectedRechargeTokens)}>
-                <Text style={styles.walletRechargeButtonText}>Recharge With Payment</Text>
-              </TouchableOpacity>
-            </View>
 
-            <View style={styles.profileStatsGrid}>
-              <StatTile label="Following" value={`${Object.values(followedStreamers).filter(Boolean).length}`} />
-              <StatTile label="Reserved" value={`${cartCount}`} />
-              <StatTile label="Orders" value={`${orders.length}`} />
-              <StatTile label="Spent" value={`${totalSpentTokens} Cat Coins`} />
-            </View>
-
-            <View style={[styles.profileCard, { backgroundColor: surfaces.cardBg, borderColor: surfaces.cardBorder }]}>
-              <Text style={[styles.profileSectionTitle, { color: surfaces.title }]}>Edit Profile</Text>
-              <Text style={[styles.inputLabel, { color: surfaces.title }]}>Display name</Text>
-              <TextInput style={[styles.textInput, { backgroundColor: surfaces.inputBg, borderColor: surfaces.inputBorder, color: surfaces.inputText }]} value={displayName} onChangeText={setDisplayName} />
-              <Text style={[styles.inputLabel, { color: surfaces.title }]}>Bio</Text>
-              <TextInput style={[styles.textInput, styles.bioInput, { backgroundColor: surfaces.inputBg, borderColor: surfaces.inputBorder, color: surfaces.inputText }]} value={bio} onChangeText={setBio} multiline />
-            </View>
-
-            <View style={[styles.profileCard, { backgroundColor: surfaces.cardBg, borderColor: surfaces.cardBorder }]}>
-              <Text style={[styles.profileSectionTitle, { color: surfaces.title }]}>Notifications</Text>
-              <SettingRow
-                title="Push alerts"
-                subtitle="Live reminders and reservation expiry alerts"
-                enabled={pushAlerts}
-                onToggle={() => setPushAlerts((prev) => !prev)}
-              />
-              <SettingRow
-                title="Email alerts"
-                subtitle="Order receipts and weekly token reports"
-                enabled={emailAlerts}
-                onToggle={() => setEmailAlerts((prev) => !prev)}
-              />
-            </View>
-
-            <View style={[styles.profileCard, { backgroundColor: surfaces.cardBg, borderColor: surfaces.cardBorder }]}>
-              <Text style={[styles.profileSectionTitle, { color: surfaces.title }]}>App Appearance</Text>
-              <View style={styles.appearanceRow}>
-                <TouchableOpacity
-                  style={[styles.appearanceChip, appearanceMode === "system" ? styles.appearanceChipActive : null]}
-                  onPress={() => setAppearanceMode("system")}
-                >
-                  <Text style={[styles.appearanceChipText, !isDarkMode ? { color: "#111" } : null]}>Same As System</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.appearanceChip, appearanceMode === "light" ? styles.appearanceChipActive : null]}
-                  onPress={() => setAppearanceMode("light")}
-                >
-                  <Text style={[styles.appearanceChipText, !isDarkMode ? { color: "#111" } : null]}>Light</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.appearanceChip, appearanceMode === "dark" ? styles.appearanceChipActive : null]}
-                  onPress={() => setAppearanceMode("dark")}
-                >
-                  <Text style={[styles.appearanceChipText, !isDarkMode ? { color: "#111" } : null]}>Dark</Text>
-                </TouchableOpacity>
+              <View style={styles.profileStatsGrid}>
+                <StatTile label="Following" value={`${Object.values(followedStreamers).filter(Boolean).length}`} />
+                <StatTile label="Reserved" value={`${cartCount}`} />
+                <StatTile label="Orders" value={`${orders.length}`} />
+                <StatTile label="Spent" value={`${totalSpentTokens} Cat Coins`} />
               </View>
-              <Text style={[styles.appearanceHint, { color: surfaces.body }]}>
-                {appearanceMode === "system"
-                  ? "Following your device appearance."
-                  : `Using ${appearanceMode} mode.`}
-              </Text>
-            </View>
 
-            <View style={[styles.profileCard, { backgroundColor: surfaces.cardBg, borderColor: surfaces.cardBorder }]}>
-              <Text style={[styles.profileSectionTitle, { color: surfaces.title }]}>Recent Orders</Text>
-              {orders.length === 0 ? (
-                <Text style={[styles.emptyRecentText, { color: surfaces.body }]}>No orders yet. Checkout from Cart to see history.</Text>
-              ) : (
-                orders.slice(0, 4).map((order) => (
-                  <View key={order.id} style={styles.orderRow}>
-                    <View>
-                      <Text style={[styles.orderTitle, { color: surfaces.title }]}>{new Date(order.createdAt).toLocaleString()}</Text>
-                      <Text style={[styles.orderMeta, { color: surfaces.body }]}>
-                        {order.items.reduce((sum, item) => sum + item.quantity, 0)} items
-                      </Text>
+              <View style={[styles.profileCard, { backgroundColor: surfaces.cardBg, borderColor: surfaces.cardBorder }]}>
+                <Text style={[styles.profileSectionTitle, { color: surfaces.title }]}>Orders History</Text>
+                {orders.length === 0 ? (
+                  <Text style={[styles.emptyRecentText, { color: surfaces.body }]}>No orders yet. Checkout from Cart to see history.</Text>
+                ) : (
+                  orders.slice(0, 3).map((order) => (
+                    <View key={`mini-${order.id}`} style={styles.orderRow}>
+                      <View>
+                        <Text style={[styles.orderTitle, { color: surfaces.title }]}>{new Date(order.createdAt).toLocaleString()}</Text>
+                        <Text style={[styles.orderMeta, { color: surfaces.body }]}>{order.items.reduce((sum, item) => sum + item.quantity, 0)} items</Text>
+                      </View>
+                      <Text style={styles.orderTokens}>{order.totalTokens} Cat Coins</Text>
                     </View>
-                    <Text style={styles.orderTokens}>{order.totalTokens} Cat Coins</Text>
-                  </View>
-                ))
-              )}
-            </View>
-          </ScrollView>
-        </SafeAreaView>
+                  ))
+                )}
+              </View>
+            </ScrollView>
+          </SafeAreaView>
         </Animated.View>
       ) : null}
+
+      <Modal
+        visible={profileDrawerVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setProfileDrawerVisible(false)}
+      >
+        <View style={styles.drawerOverlay}>
+          <Pressable style={styles.drawerBackdrop} onPress={() => setProfileDrawerVisible(false)} />
+          <View style={[styles.drawerPanel, { backgroundColor: surfaces.sheetBg, borderLeftColor: surfaces.cardBorder }]}>
+            <View style={styles.searchSheetHeader}>
+              <Text style={[styles.shopPickerTitle, { color: surfaces.title }]}>
+                {profileDrawerSection === "wallet" ? "Wallet" : profileDrawerSection === "orders" ? "Orders" : "Settings"}
+              </Text>
+              <TouchableOpacity onPress={() => setProfileDrawerVisible(false)}>
+                <Ionicons name="close" size={22} color={surfaces.title} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.drawerSegmentRow}>
+              <TouchableOpacity style={[styles.drawerSegmentBtn, !isDarkMode ? styles.drawerSegmentBtnLight : null, profileDrawerSection === "wallet" ? styles.drawerSegmentBtnActive : null]} onPress={() => setProfileDrawerSection("wallet")}>
+                <Text style={[styles.drawerSegmentText, !isDarkMode ? styles.drawerSegmentTextLight : null, profileDrawerSection === "wallet" ? styles.drawerSegmentTextActive : null]}>Wallet</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.drawerSegmentBtn, !isDarkMode ? styles.drawerSegmentBtnLight : null, profileDrawerSection === "settings" || profileDrawerSection === "menu" ? styles.drawerSegmentBtnActive : null]} onPress={() => setProfileDrawerSection("settings")}>
+                <Text style={[styles.drawerSegmentText, !isDarkMode ? styles.drawerSegmentTextLight : null, profileDrawerSection === "settings" || profileDrawerSection === "menu" ? styles.drawerSegmentTextActive : null]}>Settings</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.drawerSegmentBtn, !isDarkMode ? styles.drawerSegmentBtnLight : null, profileDrawerSection === "orders" ? styles.drawerSegmentBtnActive : null]} onPress={() => setProfileDrawerSection("orders")}>
+                <Text style={[styles.drawerSegmentText, !isDarkMode ? styles.drawerSegmentTextLight : null, profileDrawerSection === "orders" ? styles.drawerSegmentTextActive : null]}>Orders</Text>
+              </TouchableOpacity>
+            </View>
+
+            {profileDrawerSection === "wallet" ? (
+              <View style={[styles.walletCard, { backgroundColor: surfaces.cardBg, borderColor: surfaces.cardBorder }]}>
+                <View style={styles.walletHeader}>
+                  <View style={styles.walletTitleRow}>
+                    <CatCoinIcon size={18} />
+                    <Text style={[styles.walletTitle, { color: surfaces.title }]}>Cat Coins Wallet</Text>
+                  </View>
+                  <Text style={styles.walletBalance}>{tokenBalance} Cat Coins</Text>
+                </View>
+                <Text style={[styles.walletSubtext, { color: surfaces.body }]}>Buy Cat Coins packs and reserve items instantly.</Text>
+                <View style={styles.tokenPackRow}>
+                  <TouchableOpacity style={styles.tokenPackButton} onPress={() => openTokenRecharge(300)}>
+                    <Text style={styles.tokenPackLabel}>+300 • $4.99</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.tokenPackButton} onPress={() => openTokenRecharge(800)}>
+                    <Text style={styles.tokenPackLabel}>+800 • $11.99</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.tokenPackButton} onPress={() => openTokenRecharge(1500)}>
+                    <Text style={styles.tokenPackLabel}>+1500 • $19.99</Text>
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity style={styles.walletRechargeButton} onPress={() => openTokenRecharge(selectedRechargeTokens)}>
+                  <Text style={styles.walletRechargeButtonText}>Recharge With Payment</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
+            {profileDrawerSection === "settings" || profileDrawerSection === "menu" ? (
+              <>
+                <SettingRow title="Push alerts" subtitle="Live reminders and reservation expiry alerts" enabled={pushAlerts} onToggle={() => setPushAlerts((prev) => !prev)} />
+                <SettingRow title="Email alerts" subtitle="Order receipts and weekly token reports" enabled={emailAlerts} onToggle={() => setEmailAlerts((prev) => !prev)} />
+                <SettingRow title="Private account" subtitle="Only approved followers can view your profile" enabled={privateAccount} onToggle={() => setPrivateAccount((prev) => !prev)} />
+                <SettingRow title="Two-factor authentication" subtitle="Extra sign-in security for your creator account" enabled={twoFactorAuth} onToggle={() => setTwoFactorAuth((prev) => !prev)} />
+                <View style={[styles.profileCard, { backgroundColor: surfaces.cardBg, borderColor: surfaces.cardBorder }]}>
+                  <Text style={[styles.profileSectionTitle, { color: surfaces.title }]}>App Appearance</Text>
+                  <View style={styles.appearanceRow}>
+                    <TouchableOpacity style={[styles.appearanceChip, !isDarkMode ? styles.appearanceChipLight : null, appearanceMode === "system" ? styles.appearanceChipActive : null]} onPress={() => setAppearanceMode("system")}><Text style={[styles.appearanceChipText, !isDarkMode ? styles.appearanceChipTextLight : null]}>Same As System</Text></TouchableOpacity>
+                    <TouchableOpacity style={[styles.appearanceChip, !isDarkMode ? styles.appearanceChipLight : null, appearanceMode === "light" ? styles.appearanceChipActive : null]} onPress={() => setAppearanceMode("light")}><Text style={[styles.appearanceChipText, !isDarkMode ? styles.appearanceChipTextLight : null]}>Light</Text></TouchableOpacity>
+                    <TouchableOpacity style={[styles.appearanceChip, !isDarkMode ? styles.appearanceChipLight : null, appearanceMode === "dark" ? styles.appearanceChipActive : null]} onPress={() => setAppearanceMode("dark")}><Text style={[styles.appearanceChipText, !isDarkMode ? styles.appearanceChipTextLight : null]}>Dark</Text></TouchableOpacity>
+                  </View>
+                </View>
+              </>
+            ) : null}
+
+            {profileDrawerSection === "orders" ? (
+              <ScrollView style={{ marginTop: 8 }}>
+                {orders.length === 0 ? (
+                  <Text style={[styles.emptyRecentText, { color: surfaces.body }]}>No orders yet. Checkout from Cart to see history.</Text>
+                ) : (
+                  orders.slice(0, 8).map((order) => (
+                    <View key={order.id} style={styles.orderRow}>
+                      <View>
+                        <Text style={[styles.orderTitle, { color: surfaces.title }]}>{new Date(order.createdAt).toLocaleString()}</Text>
+                        <Text style={[styles.orderMeta, { color: surfaces.body }]}>{order.items.reduce((sum, item) => sum + item.quantity, 0)} items</Text>
+                      </View>
+                      <Text style={styles.orderTokens}>{order.totalTokens} Cat Coins</Text>
+                    </View>
+                  ))
+                )}
+              </ScrollView>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={profileEditVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setProfileEditVisible(false)}
+      >
+        <View style={styles.searchOverlay}>
+          <Pressable style={styles.searchBackdrop} onPress={() => setProfileEditVisible(false)} />
+          <View style={[styles.searchSheet, { backgroundColor: surfaces.sheetBg }]}>
+            <View style={styles.searchSheetHeader}>
+              <Text style={[styles.searchSheetTitle, { color: surfaces.title }]}>Edit Profile</Text>
+              <TouchableOpacity onPress={() => setProfileEditVisible(false)}>
+                <Ionicons name="close" size={22} color={surfaces.title} />
+              </TouchableOpacity>
+            </View>
+            <Text style={[styles.inputLabel, { color: surfaces.title }]}>Profile photo URL</Text>
+            <TextInput style={[styles.searchInput, { backgroundColor: surfaces.inputBg, borderColor: surfaces.inputBorder, color: surfaces.inputText }]} value={editAvatarUrl} onChangeText={setEditAvatarUrl} placeholder="https://..." placeholderTextColor="#8f8f8f" />
+            <Text style={[styles.inputLabel, { color: surfaces.title }]}>Display name</Text>
+            <TextInput style={[styles.searchInput, { backgroundColor: surfaces.inputBg, borderColor: surfaces.inputBorder, color: surfaces.inputText }]} value={editDisplayName} onChangeText={setEditDisplayName} placeholder="Display name" placeholderTextColor="#8f8f8f" />
+            <Text style={[styles.inputLabel, { color: surfaces.title }]}>Username</Text>
+            <TextInput style={[styles.searchInput, { backgroundColor: surfaces.inputBg, borderColor: surfaces.inputBorder, color: surfaces.inputText }]} value={editUsername} onChangeText={setEditUsername} placeholder="username" placeholderTextColor="#8f8f8f" autoCapitalize="none" />
+            <Text style={[styles.inputLabel, { color: surfaces.title }]}>Bio</Text>
+            <TextInput style={[styles.searchInput, styles.bioInput, { backgroundColor: surfaces.inputBg, borderColor: surfaces.inputBorder, color: surfaces.inputText }]} value={editBio} onChangeText={setEditBio} placeholder="Tell viewers about your stream" placeholderTextColor="#8f8f8f" multiline />
+            <TouchableOpacity style={styles.searchApplyBtn} onPress={saveProfileEdits}>
+              <Text style={styles.searchApplyText}>Save Profile</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={checkoutDetailsVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setCheckoutDetailsVisible(false)}
+      >
+        <View style={styles.searchOverlay}>
+          <Pressable style={styles.searchBackdrop} onPress={() => setCheckoutDetailsVisible(false)} />
+          <View style={[styles.searchSheet, { backgroundColor: surfaces.sheetBg }]}>
+            <View style={styles.searchSheetHeader}>
+              <Text style={[styles.searchSheetTitle, { color: surfaces.title }]}>Checkout Details</Text>
+              <TouchableOpacity onPress={() => setCheckoutDetailsVisible(false)}>
+                <Ionicons name="close" size={22} color={surfaces.title} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={[styles.profileSectionTitle, { color: surfaces.title }]}>Shipping Address</Text>
+              <TextInput style={[styles.searchInput, { backgroundColor: surfaces.inputBg, borderColor: surfaces.inputBorder, color: surfaces.inputText }]} value={shippingFullName} onChangeText={setShippingFullName} placeholder="Full name" placeholderTextColor="#8f8f8f" />
+              <TextInput style={[styles.searchInput, { backgroundColor: surfaces.inputBg, borderColor: surfaces.inputBorder, color: surfaces.inputText }]} value={shippingPhone} onChangeText={setShippingPhone} placeholder="Phone number" placeholderTextColor="#8f8f8f" />
+              <View style={styles.paymentCardRow}>
+                <TextInput style={[styles.searchInput, styles.paymentCardHalf, { backgroundColor: surfaces.inputBg, borderColor: surfaces.inputBorder, color: surfaces.inputText }]} value={shippingCountry} onChangeText={setShippingCountry} placeholder="Country" placeholderTextColor="#8f8f8f" />
+                <TextInput style={[styles.searchInput, styles.paymentCardHalf, { backgroundColor: surfaces.inputBg, borderColor: surfaces.inputBorder, color: surfaces.inputText }]} value={shippingCity} onChangeText={setShippingCity} placeholder="City" placeholderTextColor="#8f8f8f" />
+              </View>
+              <TextInput style={[styles.searchInput, { backgroundColor: surfaces.inputBg, borderColor: surfaces.inputBorder, color: surfaces.inputText }]} value={shippingAddressLine} onChangeText={setShippingAddressLine} placeholder="Street address, building, apartment" placeholderTextColor="#8f8f8f" />
+              <TextInput style={[styles.searchInput, styles.checkoutNotesInput, { backgroundColor: surfaces.inputBg, borderColor: surfaces.inputBorder, color: surfaces.inputText }]} value={shippingNotes} onChangeText={setShippingNotes} placeholder="Delivery notes (optional)" placeholderTextColor="#8f8f8f" multiline />
+              <Text style={[styles.profileSectionTitle, { color: surfaces.title, marginTop: 6 }]}>Selected Items</Text>
+              {reservations.map((line) => (
+                <View key={`checkout-${line.id}`} style={[styles.checkoutItemRow, { borderColor: surfaces.cardBorder }]}>
+                  <Image source={{ uri: line.product.imageUrl }} style={styles.checkoutItemImage} />
+                  <View style={styles.checkoutItemMeta}>
+                    <Text style={[styles.checkoutItemTitle, { color: surfaces.title }]} numberOfLines={1}>{line.product.title}</Text>
+                    <Text style={[styles.checkoutItemSub, { color: surfaces.body }]}>Qty: {line.quantity}</Text>
+                    <Text style={styles.checkoutItemPrice}>{line.product.price * line.quantity} Cat Coins</Text>
+                  </View>
+                </View>
+              ))}
+              <View style={[styles.checkoutTotalsCard, { backgroundColor: surfaces.cardBg, borderColor: surfaces.cardBorder }]}>
+                <View style={styles.cartWalletRow}>
+                  <Text style={[styles.cartWalletLabel, { color: surfaces.body }]}>Items total</Text>
+                  <Text style={styles.cartWalletValue}>{reservedTokens} Cat Coins</Text>
+                </View>
+                <View style={styles.cartWalletRow}>
+                  <Text style={[styles.cartWalletLabel, { color: surfaces.body }]}>Wallet balance</Text>
+                  <Text style={styles.cartWalletValue}>{tokenBalance} Cat Coins</Text>
+                </View>
+              </View>
+              <TouchableOpacity style={styles.searchApplyBtn} onPress={confirmCheckout}>
+                <Text style={styles.searchApplyText}>Confirm Order</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={liveShopsLocationVisible}
@@ -2891,7 +3101,7 @@ export default function App() {
                 >
                   <Text style={styles.paymentPackBadge}>{pack.badge}</Text>
                   <Text style={[styles.paymentPackTokens, !isDarkMode ? { color: "#111" } : null]}> {pack.tokens} Cat Coins</Text>
-                  <Text style={styles.paymentPackPrice}>${pack.usd.toFixed(2)}</Text>
+                  <Text style={[styles.paymentPackPrice, !isDarkMode ? styles.paymentPackPriceLight : null]}>${pack.usd.toFixed(2)}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -2899,11 +3109,11 @@ export default function App() {
               Packages are best offers. Custom amount uses flexible pricing with a service fee.
             </Text>
 
-            <View style={styles.customRechargeCard}>
+            <View style={[styles.customRechargeCard, !isDarkMode ? styles.customRechargeCardLight : null]}>
               <View style={styles.customRechargeHeader}>
                 <Text style={[styles.customRechargeTitle, { color: surfaces.title }]}> Need a different amount?</Text>
                 <TouchableOpacity
-                  style={[styles.paymentMethodChip, useCustomRecharge ? styles.paymentMethodChipActive : null]}
+                  style={[styles.paymentMethodChip, !isDarkMode ? styles.paymentMethodChipLight : null, useCustomRecharge ? styles.paymentMethodChipActive : null]}
                   onPress={() => setUseCustomRecharge((prev) => !prev)}
                 >
                   <Text style={[styles.paymentMethodText, !isDarkMode ? { color: "#111" } : null]}> {useCustomRecharge ? "Using Custom" : "Use Custom"}</Text>
@@ -2933,19 +3143,19 @@ export default function App() {
             <Text style={[styles.paymentSectionLabel, { color: surfaces.title }]}> Payment method</Text>
             <View style={styles.paymentMethodRow}>
               <TouchableOpacity
-                style={[styles.paymentMethodChip, paymentMethod === "card" ? styles.paymentMethodChipActive : null]}
+                style={[styles.paymentMethodChip, !isDarkMode ? styles.paymentMethodChipLight : null, paymentMethod === "card" ? styles.paymentMethodChipActive : null]}
                 onPress={() => setPaymentMethod("card")}
               >
                 <Text style={[styles.paymentMethodText, !isDarkMode ? { color: "#111" } : null]}> Card</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.paymentMethodChip, paymentMethod === "apple" ? styles.paymentMethodChipActive : null]}
+                style={[styles.paymentMethodChip, !isDarkMode ? styles.paymentMethodChipLight : null, paymentMethod === "apple" ? styles.paymentMethodChipActive : null]}
                 onPress={() => setPaymentMethod("apple")}
               >
                 <Text style={[styles.paymentMethodText, !isDarkMode ? { color: "#111" } : null]}> Apple Pay</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.paymentMethodChip, paymentMethod === "google" ? styles.paymentMethodChipActive : null]}
+                style={[styles.paymentMethodChip, !isDarkMode ? styles.paymentMethodChipLight : null, paymentMethod === "google" ? styles.paymentMethodChipActive : null]}
                 onPress={() => setPaymentMethod("google")}
               >
                 <Text style={[styles.paymentMethodText, !isDarkMode ? { color: "#111" } : null]}> Google Pay</Text>
@@ -3107,10 +3317,10 @@ export default function App() {
               {categoryOptions.map((category) => (
                 <TouchableOpacity
                   key={category}
-                  style={[styles.searchCategoryChip, selectedCategory === category ? styles.searchCategoryChipActive : null]}
+                  style={[styles.searchCategoryChip, !isDarkMode ? styles.searchCategoryChipLight : null, selectedCategory === category ? styles.searchCategoryChipActive : null]}
                   onPress={() => setSelectedCategory(category)}
                 >
-                  <Text style={styles.searchCategoryChipText}>{category}</Text>
+                  <Text style={[styles.searchCategoryChipText, !isDarkMode ? styles.searchCategoryChipTextLight : null]}>{category}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -3200,6 +3410,13 @@ export default function App() {
                   <View style={styles.viewerLiveLabelWrap}>
                     <Text style={styles.viewerLiveLabel}>LIVE</Text>
                   </View>
+                  {selectedLiveShopId ? (
+                    <TouchableOpacity style={styles.roomRailButton} onPress={ringShopBell}>
+                      <Ionicons name="notifications-outline" size={22} color="#ffe08f" />
+                      <Text style={styles.roomRailText}>Bell</Text>
+                      <Text style={styles.roomRailBellCount}>{shopBellRings[selectedLiveShopId] ?? 0}</Text>
+                    </TouchableOpacity>
+                  ) : null}
                   <TouchableOpacity
                     style={styles.viewerLikeButton}
                     onPress={likeLiveRoom}
@@ -3593,18 +3810,21 @@ const styles = StyleSheet.create({
   bottomFade: { position: "absolute", left: 0, right: 0, bottom: 0, height: "45%", backgroundColor: "rgba(0,0,0,0.55)" },
   overlay: { flex: 1, justifyContent: "space-between" },
   topBar: { paddingHorizontal: 16, paddingTop: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  brand: { color: "#f9f6ef", fontSize: 12, fontWeight: "900", letterSpacing: 1.4 },
-  tabs: { alignItems: "center", gap: 5 },
+  topBarSide: { flex: 1, justifyContent: "center" },
+  topBarSideRight: { alignItems: "flex-end" },
+  brand: { color: "#f9f6ef", fontSize: 12, fontWeight: "900", letterSpacing: 1.4, textAlign: "left" },
+  tabs: { flex: 1.35, alignItems: "center", justifyContent: "center" },
   feedTabRow: { flexDirection: "row", alignItems: "center", gap: 14 },
-  feedTabButton: { paddingVertical: 2 },
+  feedTabButton: { paddingVertical: 2, paddingBottom: 6, borderBottomWidth: 2, borderBottomColor: "transparent" },
+  feedTabButtonActive: { borderBottomColor: "#ff2d55" },
   inactiveTab: { color: "rgba(255,255,255,0.6)", fontSize: 15, fontWeight: "600" },
   inactiveTabLight: { color: "rgba(0,0,0,0.5)" },
   activeTab: { color: "#ffffff", fontSize: 16, fontWeight: "800" },
   activeTabLight: { color: "#111111" },
-  tabIndicator: { width: 28, height: 3, borderRadius: 999, backgroundColor: "#ff2d55" },
-  tabIndicatorExplore: { marginLeft: -86 },
+  tabIndicator: { width: 0, height: 0, borderRadius: 0, backgroundColor: "transparent" },
+  tabIndicatorExplore: { marginLeft: 0 },
   tabIndicatorFollowing: { marginLeft: 0 },
-  tabIndicatorForYou: { marginLeft: 86 },
+  tabIndicatorForYou: { marginLeft: 0 },
   exploreGridContent: { paddingTop: 10, paddingBottom: 120, paddingHorizontal: 10, gap: 10 },
   exploreTile: {
     width: "48%",
@@ -3721,6 +3941,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     padding: 12
   },
+  liveCardLight: { backgroundColor: "#ffffff", borderColor: "rgba(20,20,20,0.12)" },
   liveCardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -3744,11 +3965,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "800"
   },
+  hostNameLight: { color: "#111111" },
   hostHandle: {
     color: "#bbbbbb",
     fontSize: 11,
     marginTop: 2
   },
+  hostHandleLight: { color: "#666666" },
   liveCardBadges: {
     alignItems: "flex-end"
   },
@@ -3759,6 +3982,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.14)"
   },
+  previewBoxLight: { borderColor: "rgba(20,20,20,0.14)" },
   previewImage: {
     width: "100%",
     height: 190
@@ -3799,6 +4023,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginTop: 10
   },
+  cardCategoryLight: { color: "#9b6500" },
   cardActionsRow: {
     marginTop: 10,
     flexDirection: "row",
@@ -3830,11 +4055,13 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.13)",
     padding: 10
   },
+  productMiniCardLight: { backgroundColor: "#ffffff", borderColor: "rgba(20,20,20,0.13)" },
   productMiniTitle: {
     color: "#fff",
     fontSize: 12,
     fontWeight: "700"
   },
+  productMiniTitleLight: { color: "#111111" },
   productMiniPrice: {
     color: "#ffd7a1",
     fontSize: 12,
@@ -3866,10 +4093,12 @@ const styles = StyleSheet.create({
   enterRoomLink: { color: "#ffe08f", fontSize: 12, fontWeight: "700" },
   title: { color: "#ffffff", marginTop: 6, fontSize: 22, fontWeight: "900", lineHeight: 26 },
   caption: { color: "rgba(255,255,255,0.9)", marginTop: 8, fontSize: 13, lineHeight: 18, maxWidth: "90%" },
+  captionLight: { color: "#5f5f5f" },
   followButton: { marginTop: 10, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7, alignSelf: "flex-start" },
   followCtaButton: { backgroundColor: "#ff2d55" },
   followingButton: { backgroundColor: "rgba(255,255,255,0.22)", borderWidth: 1, borderColor: "rgba(255,255,255,0.4)" },
   followButtonText: { color: "#ffffff", fontSize: 12, fontWeight: "800" },
+  followButtonTextLight: { color: "#111111" },
   productStrip: { paddingTop: 12, gap: 8, paddingRight: 6 },
   productCard: { width: 200, borderRadius: 12, overflow: "hidden", backgroundColor: "rgba(20,20,20,0.88)", borderWidth: 1, borderColor: "rgba(255,255,255,0.12)" },
   productImage: { width: "100%", height: 90 },
@@ -4207,16 +4436,19 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center"
   },
+  queueItemLight: { borderColor: "rgba(20,20,20,0.12)", backgroundColor: "#ffffff" },
   queueBuyer: {
     color: "#fff",
     fontSize: 12,
     fontWeight: "700"
   },
+  queueBuyerLight: { color: "#111111" },
   queueMeta: {
     color: "#b9b9b9",
     fontSize: 11,
     marginTop: 4
   },
+  queueMetaLight: { color: "#5f5f5f" },
   queueRight: {
     alignItems: "flex-end"
   },
@@ -4230,6 +4462,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     marginTop: 4
   },
+  queueTimeLight: { color: "#666666" },
   chatComposer: { flexDirection: "row", gap: 8, marginBottom: 10 },
   chatInput: {
     flex: 1,
@@ -4461,7 +4694,9 @@ const styles = StyleSheet.create({
   qtyButtonTextLight: { color: "#111111" },
   qtyValue: { color: "#ffffff", fontSize: 13, fontWeight: "800" },
   releaseButton: { marginTop: 2, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: "rgba(255,255,255,0.2)" },
+  releaseButtonLight: { borderColor: "rgba(20,20,20,0.2)", backgroundColor: "#ffffff" },
   releaseText: { color: "#ffffff", fontSize: 10, fontWeight: "700" },
+  releaseTextLight: { color: "#111111" },
   profileTabScreen: { flex: 1, backgroundColor: "#090909" },
   profileTabContent: { paddingHorizontal: 14, paddingTop: 14, paddingBottom: 110, gap: 12 },
   profileHero: { alignItems: "center", backgroundColor: "#151515", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", borderRadius: 18, padding: 16 },
@@ -4469,6 +4704,11 @@ const styles = StyleSheet.create({
   profileHeroName: { marginTop: 10, color: "#fff", fontSize: 21, fontWeight: "900" },
   profileHeroHandle: { marginTop: 4, color: "#9fcfff", fontSize: 13, fontWeight: "700" },
   profileHeroBio: { marginTop: 8, textAlign: "center", color: "#d4d4d4", fontSize: 13, lineHeight: 19 },
+  profileHeroActionRow: { marginTop: 12, flexDirection: "row", gap: 8 },
+  profileEditButton: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#ff2d55", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
+  profileEditButtonText: { color: "#fff", fontSize: 12, fontWeight: "800" },
+  profileGhostButton: { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderColor: "rgba(255,255,255,0.22)", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
+  profileGhostButtonText: { fontSize: 12, fontWeight: "700" },
   profileSignOutButton: {
     marginTop: 10,
     borderRadius: 999,
@@ -4520,6 +4760,7 @@ const styles = StyleSheet.create({
   paymentPackBadge: { color: "#ffd8a6", fontSize: 10, fontWeight: "800", marginBottom: 4 },
   paymentPackTokens: { color: "#fff", fontSize: 12, fontWeight: "800" },
   paymentPackPrice: { color: "#ffe08f", fontSize: 11, marginTop: 4, fontWeight: "700" },
+  paymentPackPriceLight: { color: "#9b6500" },
   paymentBestOfferHint: { marginTop: 8, color: "#b8b8b8", fontSize: 11 },
   customRechargeCard: {
     marginTop: 10,
@@ -4529,6 +4770,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#1a1a1a",
     padding: 10
   },
+  customRechargeCardLight: { backgroundColor: "#ffffff", borderColor: "rgba(20,20,20,0.14)" },
   customRechargeHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8, gap: 8 },
   customRechargeTitle: { color: "#fff", fontSize: 12, fontWeight: "800", flex: 1 },
   customRechargeFormula: { marginTop: -4, color: "#bfbfbf", fontSize: 11 },
@@ -4542,6 +4784,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 7
   },
+  paymentMethodChipLight: { borderColor: "rgba(20,20,20,0.2)", backgroundColor: "#ffffff" },
   paymentMethodChipActive: { borderColor: "#ff2d55", backgroundColor: "rgba(255,45,85,0.22)" },
   paymentMethodText: { color: "#fff", fontSize: 11, fontWeight: "700" },
   paymentCardRow: { flexDirection: "row", gap: 8 },
@@ -4582,14 +4825,57 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 7
   },
+  appearanceChipLight: { borderColor: "rgba(20,20,20,0.2)", backgroundColor: "#ffffff" },
   appearanceChipActive: { borderColor: "#ff2d55", backgroundColor: "rgba(255,45,85,0.22)" },
   appearanceChipText: { color: "#fff", fontSize: 11, fontWeight: "700" },
+  appearanceChipTextLight: { color: "#111111" },
   appearanceHint: { marginTop: 8, color: "#b5b5b5", fontSize: 11 },
   emptyRecentText: { color: "#b6b6b6", fontSize: 12 },
   orderRow: { borderWidth: 1, borderColor: "rgba(255,255,255,0.12)", backgroundColor: "#1d1d1d", borderRadius: 12, padding: 10, marginBottom: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   orderTitle: { color: "#ffffff", fontSize: 12, fontWeight: "700" },
   orderMeta: { marginTop: 4, color: "#aaaaaa", fontSize: 11 },
   orderTokens: { color: "#ffe08f", fontSize: 12, fontWeight: "800" },
+  drawerOverlay: { flex: 1, flexDirection: "row" },
+  drawerBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.30)" },
+  drawerPanel: {
+    width: "80%",
+    backgroundColor: "#121212",
+    borderLeftWidth: 1,
+    borderLeftColor: "rgba(255,255,255,0.14)",
+    paddingHorizontal: 12,
+    paddingTop: 54,
+    paddingBottom: 14
+  },
+  drawerSegmentRow: { flexDirection: "row", gap: 8, marginTop: 10, marginBottom: 10 },
+  drawerSegmentBtn: { flex: 1, borderRadius: 999, borderWidth: 1, borderColor: "rgba(255,255,255,0.2)", backgroundColor: "#1d1d1d", paddingVertical: 8, alignItems: "center" },
+  drawerSegmentBtnLight: { backgroundColor: "#ffffff", borderColor: "rgba(20,20,20,0.2)" },
+  drawerSegmentBtnActive: { borderColor: "#ff2d55", backgroundColor: "rgba(255,45,85,0.2)" },
+  drawerSegmentText: { color: "#ffffff", fontSize: 11, fontWeight: "800" },
+  drawerSegmentTextLight: { color: "#111111" },
+  drawerSegmentTextActive: { color: "#ffffff" },
+  checkoutNotesInput: { minHeight: 70, textAlignVertical: "top" },
+  checkoutItemRow: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8
+  },
+  checkoutItemImage: { width: 54, height: 54, borderRadius: 10 },
+  checkoutItemMeta: { flex: 1 },
+  checkoutItemTitle: { fontSize: 12, fontWeight: "700" },
+  checkoutItemSub: { marginTop: 2, fontSize: 11 },
+  checkoutItemPrice: { marginTop: 4, color: "#ffe08f", fontSize: 12, fontWeight: "800" },
+  checkoutTotalsCard: {
+    marginTop: 10,
+    backgroundColor: "#151515",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    borderRadius: 12,
+    padding: 10
+  },
   roomOverlay: { flex: 1, backgroundColor: "#000000" },
   roomBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.62)" },
   roomSheet: { flex: 1, backgroundColor: "#050505" },
@@ -4921,8 +5207,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6
   },
+  searchCategoryChipLight: { backgroundColor: "#ffffff", borderColor: "rgba(20,20,20,0.18)" },
   searchCategoryChipActive: { borderColor: "#ff2d55", backgroundColor: "rgba(255,45,85,0.28)" },
   searchCategoryChipText: { color: "#fff", fontSize: 11, fontWeight: "700" },
+  searchCategoryChipTextLight: { color: "#111111" },
   searchActions: { flexDirection: "row", justifyContent: "space-between", marginTop: 14 },
   searchClearBtn: {
     borderWidth: 1,
@@ -5072,10 +5360,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10
   },
   locationActionButtonText: { color: "#fff", fontSize: 11, fontWeight: "800" },
-  tabBar: { position: "absolute", bottom: 10, left: 14, right: 14, borderRadius: 16, backgroundColor: "rgba(10,10,10,0.92)", borderWidth: 1, borderColor: "rgba(255,255,255,0.12)", flexDirection: "row", justifyContent: "space-around", paddingVertical: 10 },
-  tabButton: { minWidth: 70, alignItems: "center", gap: 4 },
+  tabBar: { position: "absolute", bottom: 10, left: 12, right: 12, borderRadius: 16, backgroundColor: "rgba(10,10,10,0.92)", borderWidth: 1, borderColor: "rgba(255,255,255,0.12)", flexDirection: "row", justifyContent: "space-between", paddingVertical: 10, paddingHorizontal: 4 },
+  tabButton: { flex: 1, minWidth: 0, alignItems: "center", justifyContent: "center", gap: 4 },
   tabButtonPressed: { transform: [{ scale: 0.96 }], opacity: 0.9 },
-  tabLabel: { color: "rgba(255,255,255,0.65)", fontSize: 11, fontWeight: "700" }
+  tabLabel: { color: "rgba(255,255,255,0.65)", fontSize: 11, fontWeight: "700", textAlign: "center" },
+  roomRailBellCount: { color: "#ffe08f", fontSize: 10, fontWeight: "800" }
 });
 
 
