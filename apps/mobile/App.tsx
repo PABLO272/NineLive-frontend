@@ -1,6 +1,7 @@
-import { StatusBar } from "expo-status-bar";
+﻿import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import * as Location from "expo-location";
 import React from "react";
 import {
   Alert,
@@ -27,7 +28,7 @@ import {
 import { LiveStream, Product } from "@ninelive/shared";
 import { sampleFeed } from "./src/screens/sampleFeed";
 
-type AppTab = "home" | "goLive" | "cart" | "profile";
+type AppTab = "home" | "liveShops" | "goLive" | "cart" | "profile";
 type HomeFeedTab = "explore" | "forYou" | "following";
 type AuthMode = "welcome" | "signin" | "signup";
 type AppearanceMode = "system" | "light" | "dark";
@@ -71,8 +72,30 @@ type QueueItem = {
   at: number;
 };
 
+type LiveShop = {
+  id: string;
+  name: string;
+  city: string;
+  country: string;
+  category: string;
+  logoUrl: string;
+  lat: number;
+  lng: number;
+  viewers: number;
+};
+
 const RESERVATION_WINDOW_MS = 10 * 60 * 1000;
 const ThemeModeContext = React.createContext<boolean>(true);
+const DEFAULT_USER_LOCATION = { lat: 26.2235, lng: 50.5876 };
+const LIVE_SHOPS: LiveShop[] = [
+  { id: "shop-1", name: "Ninelive Tokyo Select", city: "Tokyo", country: "Japan", category: "Fashion", logoUrl: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400", lat: 35.6762, lng: 139.6503, viewers: 12800 },
+  { id: "shop-2", name: "Berlin Sneaker Hub", city: "Berlin", country: "Germany", category: "Sneakers", logoUrl: "https://images.unsplash.com/photo-1460353581641-37baddab0fa2?w=400", lat: 52.52, lng: 13.405, viewers: 7600 },
+  { id: "shop-3", name: "Toronto Tech Outlet", city: "Toronto", country: "Canada", category: "Tech", logoUrl: "https://images.unsplash.com/photo-1518770660439-4636190af475?w=400", lat: 43.6532, lng: -79.3832, viewers: 9100 },
+  { id: "shop-4", name: "Paris Beauty House", city: "Paris", country: "France", category: "Beauty", logoUrl: "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=400", lat: 48.8566, lng: 2.3522, viewers: 6400 },
+  { id: "shop-5", name: "Istanbul Bazaar Live", city: "Istanbul", country: "Turkey", category: "Home", logoUrl: "https://images.unsplash.com/photo-1519710164239-da123dc03ef4?w=400", lat: 41.0082, lng: 28.9784, viewers: 5400 },
+  { id: "shop-6", name: "Riyadh Luxe Gallery", city: "Riyadh", country: "Saudi Arabia", category: "Luxury", logoUrl: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400", lat: 24.7136, lng: 46.6753, viewers: 4300 },
+  { id: "shop-7", name: "Bahrain Street Deals", city: "Manama", country: "Bahrain", category: "Lifestyle", logoUrl: "https://images.unsplash.com/photo-1472851294608-062f824d29cc?w=400", lat: 26.2235, lng: 50.5876, viewers: 3500 }
+];
 
 function stockKey(streamId: string, productId: string): string {
   return `${streamId}::${productId}`;
@@ -100,6 +123,51 @@ function formatCountdown(ms: number): string {
     .padStart(2, "0");
   const seconds = (totalSeconds % 60).toString().padStart(2, "0");
   return `${minutes}:${seconds}`;
+}
+
+function formatLongCountdown(ms: number): string {
+  if (ms <= 0) {
+    return "00:00:00";
+  }
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600).toString().padStart(2, "0");
+  const minutes = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, "0");
+  const seconds = (totalSeconds % 60).toString().padStart(2, "0");
+  return `${hours}:${minutes}:${seconds}`;
+}
+
+function getNextSessionTimestamp(slotLabel: string): number {
+  const parsed = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(slotLabel.trim());
+  if (!parsed) {
+    return Date.now() + 60 * 60 * 1000;
+  }
+  let hour = Number(parsed[1]);
+  const minute = Number(parsed[2]);
+  const period = parsed[3].toUpperCase();
+  if (period === "AM" && hour === 12) hour = 0;
+  if (period === "PM" && hour !== 12) hour += 12;
+  const now = new Date();
+  const target = new Date(now);
+  target.setHours(hour, minute, 0, 0);
+  if (target.getTime() <= now.getTime()) {
+    target.setDate(target.getDate() + 1);
+  }
+  return target.getTime();
+}
+
+function degToRad(value: number): number {
+  return (value * Math.PI) / 180;
+}
+
+function distanceKm(fromLat: number, fromLng: number, toLat: number, toLng: number): number {
+  const earthRadiusKm = 6371;
+  const dLat = degToRad(toLat - fromLat);
+  const dLng = degToRad(toLng - fromLng);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(degToRad(fromLat)) * Math.cos(degToRad(toLat)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadiusKm * c;
 }
 
 function deriveBuyerName(seed: string): string {
@@ -340,6 +408,16 @@ export default function App() {
   const [homeFeedTab, setHomeFeedTab] = React.useState<HomeFeedTab>("forYou");
   const [selectedCategory, setSelectedCategory] = React.useState("All");
   const [searchQuery, setSearchQuery] = React.useState("");
+  const [liveShopsQuery, setLiveShopsQuery] = React.useState("");
+  const [selectedLiveShopId, setSelectedLiveShopId] = React.useState<string | null>(null);
+  const [liveShopsLocationVisible, setLiveShopsLocationVisible] = React.useState(false);
+  const [selectedMapShopId, setSelectedMapShopId] = React.useState<string | null>(null);
+  const [userLocation, setUserLocation] = React.useState(DEFAULT_USER_LOCATION);
+  const [detectingLocation, setDetectingLocation] = React.useState(false);
+  const [selectedShopSession, setSelectedShopSession] = React.useState<string | null>(null);
+  const [waitingUntil, setWaitingUntil] = React.useState<number | null>(null);
+  const [waitingTick, setWaitingTick] = React.useState(0);
+  const [shopSessionReminders, setShopSessionReminders] = React.useState<Record<string, boolean>>({});
   const [searchModalVisible, setSearchModalVisible] = React.useState(false);
   const [streams, setStreams] = React.useState<LiveStream[]>(sampleFeed.streams);
   const [followedStreamers, setFollowedStreamers] = React.useState<Record<string, boolean>>({});
@@ -426,6 +504,28 @@ export default function App() {
     }),
     [isDarkMode]
   );
+  const liveShopsData = React.useMemo(() => {
+    const query = liveShopsQuery.trim().toLowerCase();
+    return LIVE_SHOPS.map((shop) => ({
+      ...shop,
+      distance: distanceKm(userLocation.lat, userLocation.lng, shop.lat, shop.lng)
+    }))
+      .filter((shop) =>
+        query
+          ? `${shop.name} ${shop.city} ${shop.country} ${shop.category}`.toLowerCase().includes(query)
+          : true
+      )
+      .sort((a, b) => a.distance - b.distance);
+  }, [liveShopsQuery, userLocation.lat, userLocation.lng]);
+  const selectedLiveShop = React.useMemo(
+    () => (selectedLiveShopId ? LIVE_SHOPS.find((shop) => shop.id === selectedLiveShopId) ?? null : null),
+    [selectedLiveShopId]
+  );
+  const waitingSessionKey = React.useMemo(
+    () => (selectedLiveShopId && selectedShopSession ? `${selectedLiveShopId}::${selectedShopSession}` : null),
+    [selectedLiveShopId, selectedShopSession]
+  );
+  const waitingMs = waitingUntil ? Math.max(0, waitingUntil - Date.now()) : 0;
 
   const normalizeUsername = React.useCallback((value: string) => {
     const cleaned = value
@@ -448,7 +548,7 @@ export default function App() {
     setAuthPassword("");
     setAuthConfirmPassword("");
     setAuthAcceptedTerms(false);
-    setActiveTab("home");
+    setActiveTab("liveShops");
   }, [normalizeUsername]);
 
   const beginNewAccountOnboarding = React.useCallback((name: string, email: string) => {
@@ -544,9 +644,68 @@ export default function App() {
     }
     setUsername(cleanUser);
     setProfileSetupNeeded(false);
-    setActiveTab("home");
+    setActiveTab("liveShops");
     Alert.alert("Profile ready", "Your account setup is complete.");
   };
+  React.useEffect(() => {
+    if (!selectedShopSession || !waitingUntil) {
+      return;
+    }
+    const interval = setInterval(() => setWaitingTick((prev) => prev + 1), 1000);
+    return () => clearInterval(interval);
+  }, [selectedShopSession, waitingUntil]);
+
+  const detectCurrentLocation = React.useCallback(async () => {
+    try {
+      setDetectingLocation(true);
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (permission.status !== "granted") {
+        Alert.alert("Permission needed", "Allow location access to use your current position.");
+        return;
+      }
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      Alert.alert("Location updated", "Nearby shops are now sorted based on your location.");
+    } catch {
+      Alert.alert("Location unavailable", "Could not read current location.");
+    } finally {
+      setDetectingLocation(false);
+    }
+  }, []);
+
+  const openLiveShopsMap = React.useCallback(() => {
+    setLiveShopsLocationVisible(true);
+  }, []);
+
+  const chooseShopFromMap = React.useCallback((shop: LiveShop) => {
+    setSelectedMapShopId(shop.id);
+    setUserLocation({ lat: shop.lat, lng: shop.lng });
+    setLiveShopsLocationVisible(false);
+  }, []);
+
+  const openShopLiveRoom = React.useCallback((slot: string) => {
+    setSelectedShopSession(slot);
+    setWaitingUntil(getNextSessionTimestamp(slot));
+    setWaitingTick((prev) => prev + 1);
+  }, []);
+
+  const leaveWaitingRoom = React.useCallback(() => {
+    setSelectedShopSession(null);
+    setWaitingUntil(null);
+  }, []);
+
+  const enterShopLiveNow = React.useCallback(() => {
+    if (!selectedLiveShop) {
+      return;
+    }
+    const matched = streams.find((s) => s.category.toLowerCase() === selectedLiveShop.category.toLowerCase()) ?? streams[0];
+    if (!matched) {
+      Alert.alert("No live stream", "There is no active shop stream right now.");
+      return;
+    }
+    setSelectedStreamId(matched.id);
+  }, [selectedLiveShop, streams]);
+
   const screenTransition = React.useRef(new Animated.Value(1)).current;
   const livePulse = React.useRef(new Animated.Value(0)).current;
   const rechargePackages = React.useMemo(
@@ -1947,6 +2106,108 @@ export default function App() {
         </Animated.View>
       ) : null}
 
+      {activeTab === "liveShops" ? (
+        <Animated.View style={[styles.liveShopsScreen, screenTransitionStyle, { backgroundColor: ui.sectionBg }]}>
+          <SafeAreaView style={[styles.liveShopsScreen, { backgroundColor: ui.sectionBg }]}>
+            {selectedLiveShop ? (
+              <View style={styles.shopScheduleRoot}>
+                <Image source={{ uri: selectedLiveShop.logoUrl }} style={styles.shopScheduleBg} />
+                <View style={styles.shopScheduleShade} />
+                <View style={styles.shopScheduleContent}>
+                  <TouchableOpacity
+                    style={styles.shopScheduleBackBtn}
+                    onPress={() => {
+                      setSelectedShopSession(null);
+                      setWaitingUntil(null);
+                      setSelectedLiveShopId(null);
+                    }}
+                  >
+                    <Ionicons name="chevron-back" size={16} color="#fff" />
+                    <Text style={styles.shopScheduleBackText}>Back to shops</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.shopScheduleTitle}>{selectedLiveShop.name}</Text>
+                  <Text style={styles.shopScheduleSubtitle}>{selectedLiveShop.category} · {selectedLiveShop.city}, {selectedLiveShop.country}</Text>
+                  {!selectedShopSession ? (
+                    <View style={styles.shopScheduleTimes}>
+                      {["12:00 PM", "6:00 PM", "9:30 PM"].map((slot) => (
+                        <TouchableOpacity key={slot} style={styles.shopScheduleSlot} onPress={() => openShopLiveRoom(slot)}>
+                          <Text style={styles.shopScheduleSlotLabel}>START</Text>
+                          <Text style={styles.shopScheduleSlotText}>{slot}</Text>
+                          <Text style={styles.shopScheduleSlotHint}>Tap to enter waiting room</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  ) : (
+                    <View style={styles.shopWaitingCard}>
+                      <Text style={styles.shopWaitingTitle}>Waiting Room</Text>
+                      <Text style={styles.shopWaitingSubtitle}>{selectedShopSession} session starts in</Text>
+                      <Text style={styles.shopWaitingTimer}>{formatLongCountdown(waitingMs + waitingTick * 0)}</Text>
+                      <View style={styles.shopWaitingActions}>
+                        <TouchableOpacity
+                          style={[styles.shopWaitingActionBtn, waitingSessionKey && shopSessionReminders[waitingSessionKey] ? styles.shopWaitingActionBtnActive : null]}
+                          onPress={() => {
+                            if (!waitingSessionKey) return;
+                            setShopSessionReminders((prev) => ({ ...prev, [waitingSessionKey]: !prev[waitingSessionKey] }));
+                          }}
+                        >
+                          <Text style={styles.shopWaitingActionText}>
+                            {waitingSessionKey && shopSessionReminders[waitingSessionKey] ? "Reminder On" : "Notify Me"}
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.shopWaitingActionBtn} onPress={leaveWaitingRoom}>
+                          <Text style={styles.shopWaitingActionText}>Change Session</Text>
+                        </TouchableOpacity>
+                      </View>
+                      <TouchableOpacity style={styles.shopWaitingEnterBtn} onPress={enterShopLiveNow}>
+                        <Text style={styles.shopWaitingEnterText}>Enter Live Now (Demo)</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              </View>
+            ) : (
+              <>
+                <View style={styles.liveShopsHeader}>
+                  <View style={styles.liveShopsHeaderRow}>
+                    <Text style={[styles.liveShopsTitle, { color: surfaces.title }]}>Live Shops</Text>
+                    <TouchableOpacity style={styles.liveShopsLocationBtn} onPress={openLiveShopsMap}>
+                      <Ionicons name="map-outline" size={14} color="#fff" />
+                      <Text style={styles.liveShopsLocationBtnText}>Shops Map</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={[styles.liveShopsSubtitle, { color: surfaces.body }]}>Worldwide partner shops powered by Ninelive</Text>
+                  <Text style={[styles.liveShopsCurrentLocation, { color: surfaces.body }]}>
+                    Sorting nearest to farthest from {userLocation.lat.toFixed(3)}, {userLocation.lng.toFixed(3)}
+                  </Text>
+                  <TextInput
+                    style={[styles.liveShopsSearchInput, { backgroundColor: surfaces.inputBg, borderColor: surfaces.inputBorder, color: surfaces.inputText }]}
+                    value={liveShopsQuery}
+                    onChangeText={setLiveShopsQuery}
+                    placeholder="Search shops, cities, categories"
+                    placeholderTextColor="#8f8f8f"
+                  />
+                </View>
+                <ScrollView contentContainerStyle={styles.liveShopsList}>
+                  {liveShopsData.map((shop) => (
+                    <TouchableOpacity key={shop.id} style={[styles.liveShopCard, { backgroundColor: surfaces.cardBg, borderColor: surfaces.cardBorder }]} onPress={() => setSelectedLiveShopId(shop.id)}>
+                      <Image source={{ uri: shop.logoUrl }} style={styles.liveShopLogo} />
+                      <View style={styles.liveShopMeta}>
+                        <Text style={[styles.liveShopName, { color: surfaces.title }]}>{shop.name}</Text>
+                        <Text style={[styles.liveShopSub, { color: surfaces.body }]}>{shop.city}, {shop.country} · {shop.category}</Text>
+                        <Text style={styles.liveShopViewers}>{shop.viewers.toLocaleString()} watching</Text>
+                      </View>
+                      <View style={styles.liveShopDistancePill}>
+                        <Text style={styles.liveShopDistanceText}>{shop.distance.toFixed(1)} km</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </>
+            )}
+          </SafeAreaView>
+        </Animated.View>
+      ) : null}
+
       {activeTab === "goLive" ? (
         <Animated.View style={[styles.goLiveScreen, screenTransitionStyle, { backgroundColor: ui.sectionBg }]}>
         <SafeAreaView style={[styles.goLiveScreen, { backgroundColor: ui.sectionBg }]}>
@@ -2046,7 +2307,7 @@ export default function App() {
                           <View key={entry.id} style={styles.queueItem}>
                             <View>
                               <Text style={styles.queueBuyer}>
-                                {entry.buyerName} · {entry.type === "ordered" ? "Purchased" : "Reserved"}
+                                {entry.buyerName} Â· {entry.type === "ordered" ? "Purchased" : "Reserved"}
                               </Text>
                               <Text style={styles.queueMeta}>
                                 {entry.productTitle} x{entry.quantity}
@@ -2178,7 +2439,7 @@ export default function App() {
               <Text style={styles.goLiveHeader}>Go Live Studio</Text>
               <Text style={styles.goLiveSubheader}>Create limited drops, then broadcast instantly.</Text>
 
-              <View style={styles.cameraStage}>
+              <View style={[styles.cameraStage, !isDarkMode ? styles.cameraStageLight : null]}>
                 {cameraPermission?.granted ? (
                   <CameraView style={styles.cameraPreview} facing={cameraFacing} />
                 ) : (
@@ -2194,53 +2455,53 @@ export default function App() {
                   </View>
                 )}
 
-                <View style={styles.cameraControls}>
-                  <TouchableOpacity style={styles.cameraControlBtn} onPress={toggleCameraFacing}>
-                    <Ionicons name="camera-reverse-outline" size={18} color="#fff" />
-                    <Text style={styles.cameraControlText}>Flip</Text>
+                <View style={[styles.cameraControls, !isDarkMode ? styles.cameraControlsLight : null]}>
+                  <TouchableOpacity style={[styles.cameraControlBtn, !isDarkMode ? styles.cameraControlBtnLight : null]} onPress={toggleCameraFacing}>
+                    <Ionicons name="camera-reverse-outline" size={18} color={isDarkMode ? "#fff" : "#111"} />
+                    <Text style={[styles.cameraControlText, !isDarkMode ? styles.cameraControlTextLight : null]}>Flip</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.cameraControlBtn} onPress={openItemCamera}>
-                    <Ionicons name="camera-outline" size={18} color="#fff" />
-                    <Text style={styles.cameraControlText}>Item Cam</Text>
+                  <TouchableOpacity style={[styles.cameraControlBtn, !isDarkMode ? styles.cameraControlBtnLight : null]} onPress={openItemCamera}>
+                    <Ionicons name="camera-outline" size={18} color={isDarkMode ? "#fff" : "#111"} />
+                    <Text style={[styles.cameraControlText, !isDarkMode ? styles.cameraControlTextLight : null]}>Item Cam</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.cameraControlBtn} onPress={() => setMicMuted((prev) => !prev)}>
-                    <Ionicons name={micMuted ? "mic-off-outline" : "mic-outline"} size={18} color="#fff" />
-                    <Text style={styles.cameraControlText}>{micMuted ? "Muted" : "Mic On"}</Text>
+                  <TouchableOpacity style={[styles.cameraControlBtn, !isDarkMode ? styles.cameraControlBtnLight : null]} onPress={() => setMicMuted((prev) => !prev)}>
+                    <Ionicons name={micMuted ? "mic-off-outline" : "mic-outline"} size={18} color={isDarkMode ? "#fff" : "#111"} />
+                    <Text style={[styles.cameraControlText, !isDarkMode ? styles.cameraControlTextLight : null]}>{micMuted ? "Muted" : "Mic On"}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
 
-              <View style={styles.formCard}>
-                <Text style={styles.inputLabel}>Stream title</Text>
+              <View style={[styles.formCard, { backgroundColor: surfaces.cardBg, borderColor: surfaces.cardBorder }]}>
+                <Text style={[styles.inputLabel, { color: surfaces.title }]}>Stream title</Text>
                 <TextInput
-                  style={styles.textInput}
+                  style={[styles.textInput, { backgroundColor: surfaces.inputBg, borderColor: surfaces.inputBorder, color: surfaces.inputText }]}
                   value={streamTitle}
                   onChangeText={setStreamTitle}
                   placeholder="What are you selling now?"
                   placeholderTextColor="#8f8f8f"
                 />
 
-                <Text style={styles.inputLabel}>Category</Text>
+                <Text style={[styles.inputLabel, { color: surfaces.title }]}>Category</Text>
                 <View style={styles.categoryRow}>
                   {["Fashion", "Beauty", "Home", "Tech"].map((category) => (
                     <TouchableOpacity
                       key={category}
-                      style={[styles.categoryChip, streamCategory === category ? styles.categoryChipActive : null]}
+                      style={[styles.categoryChip, !isDarkMode ? styles.categoryChipLight : null, streamCategory === category ? styles.categoryChipActive : null]}
                       onPress={() => setStreamCategory(category)}
                     >
-                      <Text style={styles.categoryChipText}>{category}</Text>
+                      <Text style={[styles.categoryChipText, !isDarkMode ? styles.categoryChipTextLight : null]}>{category}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
 
-                <Text style={styles.inputLabel}>Create New Item</Text>
-                <View style={styles.customItemCard}>
+                <Text style={[styles.inputLabel, { color: surfaces.title }]}>Create New Item</Text>
+                <View style={[styles.customItemCard, { backgroundColor: surfaces.inputBg, borderColor: surfaces.inputBorder }]}>
                   {newItemPhotoUri ? (
                     <Image source={{ uri: newItemPhotoUri }} style={styles.customItemPhoto} />
                   ) : (
-                    <View style={styles.customItemPhotoPlaceholder}>
+                    <View style={[styles.customItemPhotoPlaceholder, { borderColor: surfaces.inputBorder }]}>
                       <Ionicons name="camera-outline" size={20} color="#ffd0da" />
-                      <Text style={styles.customItemPlaceholderText}>Tap Snap Item to capture product photo</Text>
+                      <Text style={[styles.customItemPlaceholderText, { color: surfaces.body }]}>Tap Snap Item to capture product photo</Text>
                     </View>
                   )}
                   <View style={styles.customItemActionsRow}>
@@ -2248,20 +2509,20 @@ export default function App() {
                       <Text style={styles.customItemCaptureText}>{newItemPhotoUri ? "Retake Photo" : "Take Photo"}</Text>
                     </TouchableOpacity>
                     {newItemPhotoUri ? (
-                      <TouchableOpacity style={styles.customItemClearButton} onPress={resetNewItemDraft}>
-                        <Text style={styles.customItemClearText}>Clear</Text>
+                      <TouchableOpacity style={[styles.customItemClearButton, !isDarkMode ? styles.customItemClearButtonLight : null]} onPress={resetNewItemDraft}>
+                        <Text style={[styles.customItemClearText, !isDarkMode ? styles.customItemClearTextLight : null]}>Clear</Text>
                       </TouchableOpacity>
                     ) : null}
                   </View>
                   <TextInput
-                    style={styles.textInput}
+                    style={[styles.textInput, { backgroundColor: surfaces.inputBg, borderColor: surfaces.inputBorder, color: surfaces.inputText }]}
                     value={newItemName}
                     onChangeText={setNewItemName}
                     placeholder="Item name"
                     placeholderTextColor="#8f8f8f"
                   />
                   <TextInput
-                    style={[styles.textInput, styles.customItemDescriptionInput]}
+                    style={[styles.textInput, styles.customItemDescriptionInput, { backgroundColor: surfaces.inputBg, borderColor: surfaces.inputBorder, color: surfaces.inputText }]}
                     value={newItemDescription}
                     onChangeText={setNewItemDescription}
                     placeholder="Item description"
@@ -2270,7 +2531,7 @@ export default function App() {
                   />
                   <View style={styles.customItemFieldsRow}>
                     <TextInput
-                      style={[styles.textInput, styles.customItemField]}
+                      style={[styles.textInput, styles.customItemField, { backgroundColor: surfaces.inputBg, borderColor: surfaces.inputBorder, color: surfaces.inputText }]}
                       value={newItemPrice}
                       onChangeText={setNewItemPrice}
                       placeholder="Cat Coins"
@@ -2278,7 +2539,7 @@ export default function App() {
                       placeholderTextColor="#8f8f8f"
                     />
                     <TextInput
-                      style={[styles.textInput, styles.customItemField]}
+                      style={[styles.textInput, styles.customItemField, { backgroundColor: surfaces.inputBg, borderColor: surfaces.inputBorder, color: surfaces.inputText }]}
                       value={newItemInventory}
                       onChangeText={setNewItemInventory}
                       placeholder="Stock"
@@ -2291,45 +2552,45 @@ export default function App() {
                   </TouchableOpacity>
                 </View>
 
-                <Text style={styles.inputLabel}>Limited Items Setup</Text>
+                <Text style={[styles.inputLabel, { color: surfaces.title }]}>Limited Items Setup</Text>
                 <View style={styles.productsGrid}>
                   {goLiveDraftProducts.map((entry) => (
                     <View
                       key={entry.template.id}
-                      style={[styles.goLiveProductCard, entry.selected ? styles.goLiveProductSelected : null]}
+                      style={[styles.goLiveProductCard, !isDarkMode ? styles.goLiveProductCardLight : null, entry.selected ? styles.goLiveProductSelected : null]}
                     >
                       <TouchableOpacity style={styles.goLiveProductMain} onPress={() => toggleDraftProduct(entry.template.id)}>
                         <Image source={{ uri: entry.template.imageUrl }} style={styles.goLiveProductImage} />
                         <View style={styles.goLiveProductMeta}>
-                          <Text style={styles.goLiveProductTitle} numberOfLines={1}>
+                          <Text style={[styles.goLiveProductTitle, { color: surfaces.title }]} numberOfLines={1}>
                             {entry.template.title}
                           </Text>
                           {entry.template.description ? (
-                            <Text style={styles.goLiveProductDescription} numberOfLines={2}>
+                            <Text style={[styles.goLiveProductDescription, { color: surfaces.body }]} numberOfLines={2}>
                               {entry.template.description}
                             </Text>
                           ) : null}
                           <Text style={styles.goLiveProductPrice}>{entry.template.price} Cat Coins</Text>
                         </View>
-                        <View style={[styles.selectDot, entry.selected ? styles.selectDotActive : null]} />
+                        <View style={[styles.selectDot, !isDarkMode ? styles.selectDotLight : null, entry.selected ? styles.selectDotActive : null]} />
                       </TouchableOpacity>
 
                       {entry.selected ? (
                         <View style={styles.inventoryRow}>
-                          <Text style={styles.inventoryLabel}>Limited stock</Text>
+                          <Text style={[styles.inventoryLabel, { color: surfaces.body }]}>Limited stock</Text>
                           <View style={styles.qtyInline}>
                             <TouchableOpacity
-                              style={styles.qtyButton}
+                              style={[styles.qtyButton, !isDarkMode ? styles.qtyButtonLight : null]}
                               onPress={() => changeDraftInventory(entry.template.id, -1)}
                             >
-                              <Text style={styles.qtyButtonText}>-</Text>
+                              <Text style={[styles.qtyButtonText, !isDarkMode ? styles.qtyButtonTextLight : null]}>-</Text>
                             </TouchableOpacity>
-                            <Text style={styles.qtyValue}>{entry.inventory}</Text>
+                            <Text style={[styles.qtyValue, { color: surfaces.title }]}>{entry.inventory}</Text>
                             <TouchableOpacity
-                              style={styles.qtyButton}
+                              style={[styles.qtyButton, !isDarkMode ? styles.qtyButtonLight : null]}
                               onPress={() => changeDraftInventory(entry.template.id, 1)}
                             >
-                              <Text style={styles.qtyButtonText}>+</Text>
+                              <Text style={[styles.qtyButtonText, !isDarkMode ? styles.qtyButtonTextLight : null]}>+</Text>
                             </TouchableOpacity>
                           </View>
                         </View>
@@ -2338,10 +2599,10 @@ export default function App() {
                   ))}
                 </View>
 
-                <TouchableOpacity style={styles.switchRow} onPress={() => setSaveReplay((prev) => !prev)}>
+                <TouchableOpacity style={[styles.switchRow, !isDarkMode ? styles.switchRowLight : null]} onPress={() => setSaveReplay((prev) => !prev)}>
                   <View>
-                    <Text style={styles.switchTitle}>Save replay</Text>
-                    <Text style={styles.switchText}>Viewers can shop from replay after live ends.</Text>
+                    <Text style={[styles.switchTitle, !isDarkMode ? styles.switchTitleLight : null]}>Save replay</Text>
+                    <Text style={[styles.switchText, !isDarkMode ? styles.switchTextLight : null]}>Viewers can shop from replay after live ends.</Text>
                   </View>
                   <View style={[styles.switchPill, saveReplay ? styles.switchPillActive : null]}>
                     <View style={[styles.switchDot, saveReplay ? styles.switchDotActive : null]} />
@@ -2367,15 +2628,15 @@ export default function App() {
 
             <View style={[styles.cartWalletCard, { backgroundColor: surfaces.cardBg, borderColor: surfaces.cardBorder }]}>
               <View style={styles.cartWalletRow}>
-                <Text style={styles.cartWalletLabel}>Wallet</Text>
+                <Text style={[styles.cartWalletLabel, { color: surfaces.body }]}>Wallet</Text>
                 <Text style={styles.cartWalletValue}>{tokenBalance} Cat Coins</Text>
               </View>
               <View style={styles.cartWalletRow}>
-                <Text style={styles.cartWalletLabel}>Reserved</Text>
+                <Text style={[styles.cartWalletLabel, { color: surfaces.body }]}>Reserved</Text>
                 <Text style={styles.cartWalletValue}>{reservedTokens} Cat Coins</Text>
               </View>
               <View style={styles.cartWalletRow}>
-                <Text style={styles.cartWalletLabel}>Available</Text>
+                <Text style={[styles.cartWalletLabel, { color: surfaces.body }]}>Available</Text>
                 <Text style={styles.cartWalletValue}>{availableTokens} Cat Coins</Text>
               </View>
             </View>
@@ -2462,13 +2723,13 @@ export default function App() {
               <Text style={[styles.walletSubtext, { color: surfaces.body }]}>Buy Cat Coins packs and use them to reserve live items instantly.</Text>
               <View style={styles.tokenPackRow}>
                 <TouchableOpacity style={styles.tokenPackButton} onPress={() => openTokenRecharge(300)}>
-                  <Text style={styles.tokenPackLabel}>+300 • $4.99</Text>
+                  <Text style={styles.tokenPackLabel}>+300 â€¢ $4.99</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.tokenPackButton} onPress={() => openTokenRecharge(800)}>
-                  <Text style={styles.tokenPackLabel}>+800 • $11.99</Text>
+                  <Text style={styles.tokenPackLabel}>+800 â€¢ $11.99</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.tokenPackButton} onPress={() => openTokenRecharge(1500)}>
-                  <Text style={styles.tokenPackLabel}>+1500 • $19.99</Text>
+                  <Text style={styles.tokenPackLabel}>+1500 â€¢ $19.99</Text>
                 </TouchableOpacity>
               </View>
               <TouchableOpacity style={styles.walletRechargeButton} onPress={() => openTokenRecharge(selectedRechargeTokens)}>
@@ -2560,6 +2821,48 @@ export default function App() {
       ) : null}
 
       <Modal
+        visible={liveShopsLocationVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setLiveShopsLocationVisible(false)}
+      >
+        <View style={styles.searchOverlay}>
+          <Pressable style={styles.searchBackdrop} onPress={() => setLiveShopsLocationVisible(false)} />
+          <View style={[styles.shopPickerSheet, { backgroundColor: surfaces.sheetBg, borderColor: surfaces.cardBorder }]}>
+            <View style={styles.searchSheetHeader}>
+              <Text style={[styles.shopPickerTitle, { color: surfaces.title }]}>Live Shops Map</Text>
+              <TouchableOpacity onPress={() => setLiveShopsLocationVisible(false)}>
+                <Ionicons name="close" size={22} color={surfaces.title} />
+              </TouchableOpacity>
+            </View>
+            <Text style={[styles.shopPickerHint, { color: surfaces.body }]}>
+              Pick a shop area to simulate your location, or use GPS for nearest shops.
+            </Text>
+            <TouchableOpacity style={styles.locationActionButton} onPress={detectCurrentLocation} disabled={detectingLocation}>
+              <Ionicons name="locate-outline" size={14} color="#fff" />
+              <Text style={styles.locationActionButtonText}>{detectingLocation ? "Detecting..." : "Use Current Location"}</Text>
+            </TouchableOpacity>
+            <ScrollView style={styles.shopPickerList} contentContainerStyle={styles.shopPickerListContent}>
+              {LIVE_SHOPS.map((shop) => (
+                <View key={`picker-${shop.id}`} style={[styles.shopPickerRow, !isDarkMode ? styles.shopPickerRowLight : null]}>
+                  <View style={styles.shopPickerMeta}>
+                    <Text style={[styles.shopPickerName, !isDarkMode ? styles.shopPickerNameLight : null]}>{shop.name}</Text>
+                    <Text style={[styles.shopPickerSub, !isDarkMode ? styles.shopPickerSubLight : null]}>{shop.city}, {shop.country}</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.shopPickerAction, selectedMapShopId === shop.id ? styles.shopPickerActionActive : null]}
+                    onPress={() => chooseShopFromMap(shop)}
+                  >
+                    <Text style={styles.shopPickerActionText}>Set As My Location</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
         visible={tokenRechargeVisible}
         transparent
         animationType="slide"
@@ -2618,7 +2921,7 @@ export default function App() {
                 placeholderTextColor="#8f8f8f"
               />
               <Text style={[styles.customRechargeFormula, { color: surfaces.body }]}> 
-                Formula: (Cat Coins × $0.0185) + $0.99 fee
+                Formula: (Cat Coins x $0.0185) + $0.99 fee
               </Text>
               <Text style={[styles.customRechargeTotal, { color: surfaces.title }]}> 
                 {useCustomRecharge && customRechargeValid
@@ -2695,8 +2998,8 @@ export default function App() {
                 </View>
               </>
             ) : (
-              <View style={styles.paymentWalletHint}>
-                <Text style={styles.paymentWalletHintText}>
+              <View style={[styles.paymentWalletHint, { backgroundColor: surfaces.cardBg, borderColor: surfaces.cardBorder }]}>
+                <Text style={[styles.paymentWalletHintText, { color: surfaces.body }]}>
                   You will confirm this purchase with {paymentMethod === "apple" ? "Apple Pay" : "Google Pay"}.
                 </Text>
               </View>
@@ -2789,7 +3092,7 @@ export default function App() {
             <View style={styles.searchSheetHeader}>
               <Text style={[styles.searchSheetTitle, { color: surfaces.title }]}> Search Livestreams</Text>
               <TouchableOpacity onPress={() => setSearchModalVisible(false)}>
-                <Ionicons name="close" size={22} color="#fff" />
+                <Ionicons name="close" size={22} color={surfaces.title} />
               </TouchableOpacity>
             </View>
             <TextInput
@@ -2799,7 +3102,7 @@ export default function App() {
               placeholder="Search by stream, streamer, or category"
               placeholderTextColor="#8f8f8f"
             />
-            <Text style={styles.searchHint}>Categories</Text>
+            <Text style={[styles.searchHint, { color: surfaces.body }]}>Categories</Text>
             <View style={styles.searchCategoryWrap}>
               {categoryOptions.map((category) => (
                 <TouchableOpacity
@@ -3009,6 +3312,14 @@ export default function App() {
           inactiveColor={ui.subLabel}
           icon={activeTab === "goLive" ? "radio" : "radio-outline"}
           onPress={() => setActiveTab("goLive")}
+        />
+          <TabButton
+          label="Live Shops"
+          active={activeTab === "liveShops"}
+          activeColor="#5fd0ff"
+          inactiveColor={ui.subLabel}
+          icon={activeTab === "liveShops" ? "storefront" : "storefront-outline"}
+          onPress={() => setActiveTab("liveShops")}
         />
           <TabButton
           label={cartCount > 0 ? `Cart ${cartCount}` : "Cart"}
@@ -4023,6 +4334,7 @@ const styles = StyleSheet.create({
   chatAuthor: { color: "#ffd0da", fontSize: 11, fontWeight: "700" },
   chatBody: { color: "#fff", fontSize: 12, marginTop: 3 },
   cameraStage: { borderRadius: 20, overflow: "hidden", borderWidth: 1, borderColor: "rgba(255,255,255,0.14)", backgroundColor: "#101010" },
+  cameraStageLight: { borderColor: "rgba(20,20,20,0.16)", backgroundColor: "#f4f6f9" },
   cameraPreview: { height: 270 },
   permissionCard: { height: 270, alignItems: "center", justifyContent: "center", paddingHorizontal: 24 },
   permissionTitle: { color: "#ffffff", fontSize: 20, fontWeight: "900", marginTop: 10 },
@@ -4030,15 +4342,20 @@ const styles = StyleSheet.create({
   permissionButton: { marginTop: 16, backgroundColor: "#ff2d55", borderRadius: 999, paddingHorizontal: 16, paddingVertical: 10 },
   permissionButtonText: { color: "#ffffff", fontWeight: "800", fontSize: 13 },
   cameraControls: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 10, paddingVertical: 9, backgroundColor: "rgba(0,0,0,0.65)" },
+  cameraControlsLight: { backgroundColor: "rgba(255,255,255,0.78)" },
   cameraControlBtn: { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderColor: "rgba(255,255,255,0.22)", borderRadius: 999, paddingVertical: 7, paddingHorizontal: 10 },
+  cameraControlBtnLight: { borderColor: "rgba(20,20,20,0.22)", backgroundColor: "#ffffff" },
   cameraControlText: { color: "#ffffff", fontSize: 12, fontWeight: "700" },
+  cameraControlTextLight: { color: "#111111" },
   formCard: { backgroundColor: "#141414", borderRadius: 18, borderWidth: 1, borderColor: "rgba(255,255,255,0.09)", padding: 14 },
   inputLabel: { color: "#f2f2f2", fontSize: 13, fontWeight: "700", marginBottom: 8 },
   textInput: { backgroundColor: "#1d1d1d", borderWidth: 1, borderColor: "rgba(255,255,255,0.14)", borderRadius: 12, color: "#ffffff", paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, marginBottom: 12 },
   categoryRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 },
   categoryChip: { borderRadius: 999, borderWidth: 1, borderColor: "rgba(255,255,255,0.2)", paddingHorizontal: 12, paddingVertical: 7 },
+  categoryChipLight: { borderColor: "rgba(20,20,20,0.2)", backgroundColor: "#ffffff" },
   categoryChipActive: { backgroundColor: "rgba(255,45,85,0.26)", borderColor: "#ff2d55" },
   categoryChipText: { color: "#ffffff", fontSize: 12, fontWeight: "700" },
+  categoryChipTextLight: { color: "#111111" },
   customItemCard: {
     marginBottom: 12,
     borderRadius: 12,
@@ -4077,7 +4394,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.2)"
   },
+  customItemClearButtonLight: { borderColor: "rgba(20,20,20,0.2)", backgroundColor: "#ffffff" },
   customItemClearText: { color: "#ffffff", fontSize: 11, fontWeight: "700" },
+  customItemClearTextLight: { color: "#111111" },
   customItemDescriptionInput: { minHeight: 74, textAlignVertical: "top" },
   customItemFieldsRow: { flexDirection: "row", gap: 8 },
   customItemField: { flex: 1 },
@@ -4090,6 +4409,7 @@ const styles = StyleSheet.create({
   customItemAddText: { color: "#fff", fontSize: 12, fontWeight: "900" },
   productsGrid: { gap: 8 },
   goLiveProductCard: { backgroundColor: "#1d1d1d", borderRadius: 12, borderWidth: 1, borderColor: "rgba(255,255,255,0.14)", padding: 8 },
+  goLiveProductCardLight: { backgroundColor: "#ffffff", borderColor: "rgba(20,20,20,0.14)" },
   goLiveProductSelected: { borderColor: "#ff2d55", backgroundColor: "rgba(255,45,85,0.14)" },
   goLiveProductMain: { flexDirection: "row", alignItems: "center" },
   goLiveProductImage: { width: 54, height: 54, borderRadius: 8 },
@@ -4098,13 +4418,17 @@ const styles = StyleSheet.create({
   goLiveProductDescription: { color: "#cfcfcf", fontSize: 11, marginTop: 3 },
   goLiveProductPrice: { color: "#ffd3df", fontSize: 12, marginTop: 4, fontWeight: "700" },
   selectDot: { width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: "#999" },
+  selectDotLight: { borderColor: "#666" },
   selectDotActive: { borderColor: "#ff2d55", backgroundColor: "#ff2d55" },
   inventoryRow: { marginTop: 10, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   inventoryLabel: { color: "#bbbbbb", fontSize: 12, fontWeight: "700" },
   qtyInline: { flexDirection: "row", alignItems: "center", gap: 8 },
   switchRow: { marginTop: 12, borderRadius: 12, borderWidth: 1, borderColor: "rgba(255,255,255,0.14)", backgroundColor: "#1c1c1c", padding: 12, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  switchRowLight: { borderColor: "rgba(20,20,20,0.14)", backgroundColor: "#ffffff" },
   switchTitle: { color: "#ffffff", fontWeight: "700", fontSize: 13 },
+  switchTitleLight: { color: "#111111" },
   switchText: { color: "#afafaf", fontSize: 11, marginTop: 3, maxWidth: 220 },
+  switchTextLight: { color: "#646464" },
   switchPill: { width: 44, height: 24, borderRadius: 999, backgroundColor: "#555", padding: 2 },
   switchPillActive: { backgroundColor: "#ff2d55" },
   switchDot: { width: 20, height: 20, borderRadius: 10, backgroundColor: "#fff" },
@@ -4132,7 +4456,9 @@ const styles = StyleSheet.create({
   countdownText: { color: "#ffb6c3", fontSize: 11, marginTop: 3, fontWeight: "700" },
   qtyColumn: { alignItems: "center", gap: 5 },
   qtyButton: { width: 26, height: 26, borderRadius: 8, backgroundColor: "#242424", borderWidth: 1, borderColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
+  qtyButtonLight: { backgroundColor: "#ffffff", borderColor: "rgba(20,20,20,0.2)" },
   qtyButtonText: { color: "#ffffff", fontSize: 14, fontWeight: "800" },
+  qtyButtonTextLight: { color: "#111111" },
   qtyValue: { color: "#ffffff", fontSize: 13, fontWeight: "800" },
   releaseButton: { marginTop: 2, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: "rgba(255,255,255,0.2)" },
   releaseText: { color: "#ffffff", fontSize: 10, fontWeight: "700" },
@@ -4608,11 +4934,150 @@ const styles = StyleSheet.create({
   searchClearText: { color: "#fff", fontSize: 12, fontWeight: "700" },
   searchApplyBtn: { backgroundColor: "#ff2d55", borderRadius: 10, paddingHorizontal: 16, paddingVertical: 9 },
   searchApplyText: { color: "#fff", fontSize: 12, fontWeight: "800" },
+  liveShopsScreen: { flex: 1 },
+  liveShopsHeader: { paddingHorizontal: 14, paddingTop: 10, paddingBottom: 8 },
+  liveShopsHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  liveShopsTitle: { fontSize: 24, fontWeight: "900" },
+  liveShopsSubtitle: { marginTop: 4, fontSize: 12 },
+  liveShopsCurrentLocation: { marginTop: 3, fontSize: 11 },
+  liveShopsLocationBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#ff2d55",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6
+  },
+  liveShopsLocationBtnText: { color: "#fff", fontSize: 11, fontWeight: "800" },
+  liveShopsSearchInput: {
+    marginTop: 10,
+    borderWidth: 1,
+    borderRadius: 11,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 13
+  },
+  liveShopsList: { paddingHorizontal: 12, paddingBottom: 120, gap: 8 },
+  liveShopCard: {
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10
+  },
+  liveShopLogo: { width: 56, height: 56, borderRadius: 12 },
+  liveShopMeta: { flex: 1 },
+  liveShopName: { fontSize: 13, fontWeight: "800" },
+  liveShopSub: { marginTop: 3, fontSize: 11 },
+  liveShopViewers: { marginTop: 5, color: "#ff9fb4", fontSize: 11, fontWeight: "700" },
+  liveShopDistancePill: { borderRadius: 999, backgroundColor: "rgba(95,208,255,0.22)", paddingHorizontal: 10, paddingVertical: 5 },
+  liveShopDistanceText: { color: "#62cfff", fontSize: 10, fontWeight: "800" },
+  shopScheduleRoot: { flex: 1 },
+  shopScheduleBg: { ...StyleSheet.absoluteFillObject, width: "100%", height: "100%" },
+  shopScheduleShade: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.68)" },
+  shopScheduleContent: { flex: 1, paddingHorizontal: 14, paddingTop: 50, paddingBottom: 24 },
+  shopScheduleBackBtn: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", borderRadius: 999, borderWidth: 1, borderColor: "rgba(255,255,255,0.25)", backgroundColor: "rgba(0,0,0,0.35)", paddingHorizontal: 10, paddingVertical: 6 },
+  shopScheduleBackText: { color: "#fff", fontSize: 11, fontWeight: "800" },
+  shopScheduleTitle: { marginTop: 12, fontSize: 22, fontWeight: "900", color: "#fff" },
+  shopScheduleSubtitle: { marginTop: 4, fontSize: 12, color: "rgba(255,255,255,0.82)" },
+  shopScheduleTimes: { marginTop: 14, gap: 12, alignItems: "center" },
+  shopScheduleSlot: {
+    backgroundColor: "rgba(0,0,0,0.68)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.16)",
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    width: 166,
+    height: 134
+  },
+  shopScheduleSlotLabel: { color: "#8fc9ff", fontSize: 10, fontWeight: "800", letterSpacing: 0.6 },
+  shopScheduleSlotText: { color: "#fff", fontSize: 24, fontWeight: "900", marginTop: 2, letterSpacing: 0.3 },
+  shopScheduleSlotHint: { color: "rgba(255,255,255,0.72)", fontSize: 10, marginTop: 4 },
+  shopWaitingCard: {
+    marginTop: 16,
+    backgroundColor: "rgba(0,0,0,0.62)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+    borderRadius: 18,
+    padding: 14
+  },
+  shopWaitingTitle: { color: "#fff", fontSize: 20, fontWeight: "900", textAlign: "center" },
+  shopWaitingSubtitle: { marginTop: 6, color: "rgba(255,255,255,0.82)", fontSize: 12, textAlign: "center" },
+  shopWaitingTimer: { marginTop: 10, color: "#8fc9ff", fontSize: 34, fontWeight: "900", textAlign: "center", letterSpacing: 1.4 },
+  shopWaitingActions: { marginTop: 12, flexDirection: "row", gap: 8 },
+  shopWaitingActionBtn: {
+    flex: 1,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    paddingVertical: 10
+  },
+  shopWaitingActionBtnActive: { backgroundColor: "rgba(43,182,115,0.32)", borderColor: "rgba(43,182,115,0.75)" },
+  shopWaitingActionText: { color: "#fff", fontSize: 11, fontWeight: "800" },
+  shopWaitingEnterBtn: {
+    marginTop: 12,
+    borderRadius: 12,
+    backgroundColor: "#ff2d55",
+    alignItems: "center",
+    paddingVertical: 11
+  },
+  shopWaitingEnterText: { color: "#fff", fontSize: 12, fontWeight: "900" },
+  shopPickerSheet: {
+    marginTop: "18%",
+    marginHorizontal: 12,
+    backgroundColor: "#121212",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+    borderRadius: 16,
+    padding: 12,
+    maxHeight: "76%"
+  },
+  shopPickerTitle: { color: "#fff", fontSize: 18, fontWeight: "900" },
+  shopPickerHint: { color: "#c9c9c9", fontSize: 12, marginTop: 8, marginBottom: 10 },
+  shopPickerList: { marginTop: 10 },
+  shopPickerListContent: { gap: 8, paddingBottom: 6 },
+  shopPickerRow: {
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+    borderRadius: 12,
+    padding: 10
+  },
+  shopPickerRowLight: { borderColor: "rgba(20,20,20,0.14)", backgroundColor: "#ffffff" },
+  shopPickerMeta: { marginBottom: 8 },
+  shopPickerName: { color: "#fff", fontSize: 13, fontWeight: "800" },
+  shopPickerNameLight: { color: "#111111" },
+  shopPickerSub: { marginTop: 2, color: "#b8b8b8", fontSize: 11 },
+  shopPickerSubLight: { color: "#606060" },
+  shopPickerAction: {
+    marginTop: 6,
+    borderRadius: 10,
+    backgroundColor: "#ff2d55",
+    paddingVertical: 8,
+    alignItems: "center"
+  },
+  shopPickerActionActive: { backgroundColor: "#2bb673" },
+  shopPickerActionText: { color: "#fff", fontSize: 11, fontWeight: "800" },
+  locationActionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderRadius: 10,
+    backgroundColor: "#ff2d55",
+    paddingVertical: 10
+  },
+  locationActionButtonText: { color: "#fff", fontSize: 11, fontWeight: "800" },
   tabBar: { position: "absolute", bottom: 10, left: 14, right: 14, borderRadius: 16, backgroundColor: "rgba(10,10,10,0.92)", borderWidth: 1, borderColor: "rgba(255,255,255,0.12)", flexDirection: "row", justifyContent: "space-around", paddingVertical: 10 },
   tabButton: { minWidth: 70, alignItems: "center", gap: 4 },
   tabButtonPressed: { transform: [{ scale: 0.96 }], opacity: 0.9 },
   tabLabel: { color: "rgba(255,255,255,0.65)", fontSize: 11, fontWeight: "700" }
 });
+
 
 
 
