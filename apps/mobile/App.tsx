@@ -77,6 +77,7 @@ type LiveShop = {
   name: string;
   city: string;
   country: string;
+  mall: string;
   category: string;
   logoUrl: string;
   lat: number;
@@ -91,13 +92,17 @@ const SHOP_BELL_TIMEOUT_MS = 60 * 1000;
 const ThemeModeContext = React.createContext<boolean>(true);
 const DEFAULT_USER_LOCATION = { lat: 26.2235, lng: 50.5876 };
 const LIVE_SHOPS: LiveShop[] = [
-  { id: "shop-1", name: "Ninelive Tokyo Select", city: "Tokyo", country: "Japan", category: "Fashion", logoUrl: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400", lat: 35.6762, lng: 139.6503, viewers: 12800 },
-  { id: "shop-2", name: "Berlin Sneaker Hub", city: "Berlin", country: "Germany", category: "Sneakers", logoUrl: "https://images.unsplash.com/photo-1460353581641-37baddab0fa2?w=400", lat: 52.52, lng: 13.405, viewers: 7600 },
-  { id: "shop-3", name: "Toronto Tech Outlet", city: "Toronto", country: "Canada", category: "Tech", logoUrl: "https://images.unsplash.com/photo-1518770660439-4636190af475?w=400", lat: 43.6532, lng: -79.3832, viewers: 9100 },
-  { id: "shop-4", name: "Paris Beauty House", city: "Paris", country: "France", category: "Beauty", logoUrl: "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=400", lat: 48.8566, lng: 2.3522, viewers: 6400 },
-  { id: "shop-5", name: "Istanbul Bazaar Live", city: "Istanbul", country: "Turkey", category: "Home", logoUrl: "https://images.unsplash.com/photo-1519710164239-da123dc03ef4?w=400", lat: 41.0082, lng: 28.9784, viewers: 5400 },
-  { id: "shop-6", name: "Riyadh Luxe Gallery", city: "Riyadh", country: "Saudi Arabia", category: "Luxury", logoUrl: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400", lat: 24.7136, lng: 46.6753, viewers: 4300 },
-  { id: "shop-7", name: "Bahrain Street Deals", city: "Manama", country: "Bahrain", category: "Lifestyle", logoUrl: "https://images.unsplash.com/photo-1472851294608-062f824d29cc?w=400", lat: 26.2235, lng: 50.5876, viewers: 3500 }
+  { id: "shop-1", name: "Ninelive Tokyo Select", city: "Tokyo", country: "Japan", mall: "Shibuya Square", category: "Fashion", logoUrl: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400", lat: 35.6762, lng: 139.6503, viewers: 12800 },
+  { id: "shop-2", name: "Berlin Sneaker Hub", city: "Berlin", country: "Germany", mall: "Mall of Berlin", category: "Sneakers", logoUrl: "https://images.unsplash.com/photo-1460353581641-37baddab0fa2?w=400", lat: 52.52, lng: 13.405, viewers: 7600 },
+  { id: "shop-3", name: "Toronto Tech Outlet", city: "Toronto", country: "Canada", mall: "Eaton Centre", category: "Tech", logoUrl: "https://images.unsplash.com/photo-1518770660439-4636190af475?w=400", lat: 43.6532, lng: -79.3832, viewers: 9100 },
+  { id: "shop-4", name: "Paris Beauty House", city: "Paris", country: "France", mall: "Forum des Halles", category: "Beauty", logoUrl: "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=400", lat: 48.8566, lng: 2.3522, viewers: 6400 },
+  { id: "shop-5", name: "Istanbul Bazaar Live", city: "Istanbul", country: "Turkey", mall: "Istinye Park", category: "Home", logoUrl: "https://images.unsplash.com/photo-1519710164239-da123dc03ef4?w=400", lat: 41.0082, lng: 28.9784, viewers: 5400 },
+  { id: "shop-6", name: "Riyadh Luxe Gallery", city: "Riyadh", country: "Saudi Arabia", mall: "Riyadh Park Mall", category: "Luxury", logoUrl: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400", lat: 24.7136, lng: 46.6753, viewers: 4300 },
+  { id: "shop-7", name: "Bahrain Street Deals", city: "Manama", country: "Bahrain", mall: "The Avenues Bahrain", category: "Lifestyle", logoUrl: "https://images.unsplash.com/photo-1472851294608-062f824d29cc?w=400", lat: 26.2235, lng: 50.5876, viewers: 3500 },
+  { id: "shop-8", name: "Sephora", city: "Dubai", country: "UAE", mall: "Dubai Mall", category: "Beauty", logoUrl: "https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=400", lat: 25.1972, lng: 55.2796, viewers: 11400 },
+  { id: "shop-9", name: "Apple Store", city: "Dubai", country: "UAE", mall: "Dubai Mall", category: "Tech", logoUrl: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400", lat: 25.1974, lng: 55.2797, viewers: 9800 },
+  { id: "shop-10", name: "Nike Dubai", city: "Dubai", country: "UAE", mall: "Dubai Mall", category: "Sneakers", logoUrl: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400", lat: 25.197, lng: 55.2795, viewers: 8600 },
+  { id: "shop-11", name: "Zara", city: "Dubai", country: "UAE", mall: "Dubai Mall", category: "Fashion", logoUrl: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400", lat: 25.1973, lng: 55.2794, viewers: 7900 }
 ];
 
 function stockKey(streamId: string, productId: string): string {
@@ -272,6 +277,7 @@ function SettingRow({
 function TabButton({
   label,
   icon,
+  avatarUrl,
   active,
   activeColor,
   inactiveColor,
@@ -279,6 +285,7 @@ function TabButton({
 }: {
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
+  avatarUrl?: string;
   active: boolean;
   activeColor: string;
   inactiveColor: string;
@@ -286,7 +293,13 @@ function TabButton({
 }) {
   return (
     <Pressable style={({ pressed }) => [styles.tabButton, pressed ? styles.tabButtonPressed : null]} onPress={onPress}>
-      <Ionicons name={icon} size={20} color={active ? activeColor : inactiveColor} />
+      <View style={styles.tabIconWrap}>
+        {avatarUrl ? (
+          <Image source={{ uri: avatarUrl }} style={[styles.tabAvatar, active ? styles.tabAvatarActive : null]} />
+        ) : (
+          <Ionicons name={icon} size={20} color={active ? activeColor : inactiveColor} />
+        )}
+      </View>
       <Text style={[styles.tabLabel, active ? { color: activeColor } : { color: inactiveColor }]}>{label}</Text>
     </Pressable>
   );
@@ -305,10 +318,12 @@ function getTouchDistance(
   return Math.sqrt(dx * dx + dy * dy);
 }
 
-function AnimatedCatMascot() {
+function AnimatedCatMascot({ mode = "idle" }: { mode?: "idle" | "walk" | "lay" }) {
   const bob = React.useRef(new Animated.Value(0)).current;
   const blink = React.useRef(new Animated.Value(0)).current;
   const tailSwing = React.useRef(new Animated.Value(0)).current;
+  const walk = React.useRef(new Animated.Value(0)).current;
+  const toy = React.useRef(new Animated.Value(0)).current;
 
   React.useEffect(() => {
     const bobLoop = Animated.loop(
@@ -330,22 +345,47 @@ function AnimatedCatMascot() {
         Animated.timing(tailSwing, { toValue: 0, duration: 900, easing: Easing.inOut(Easing.sin), useNativeDriver: true })
       ])
     );
+    const walkLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(walk, { toValue: 1, duration: 420, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(walk, { toValue: 0, duration: 420, easing: Easing.inOut(Easing.sin), useNativeDriver: true })
+      ])
+    );
+    const toyLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(toy, { toValue: 1, duration: 520, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(toy, { toValue: 0, duration: 520, easing: Easing.inOut(Easing.quad), useNativeDriver: true })
+      ])
+    );
     bobLoop.start();
     blinkLoop.start();
     tailLoop.start();
+    if (mode === "walk") walkLoop.start();
+    if (mode === "lay") toyLoop.start();
     return () => {
       bobLoop.stop();
       blinkLoop.stop();
       tailLoop.stop();
+      walkLoop.stop();
+      toyLoop.stop();
     };
-  }, [bob, blink, tailSwing]);
+  }, [bob, blink, tailSwing, walk, toy, mode]);
 
   const bobTranslate = bob.interpolate({ inputRange: [0, 1], outputRange: [0, -6] });
   const eyeScaleY = blink.interpolate({ inputRange: [0, 1], outputRange: [1, 0.12] });
   const tailRotate = tailSwing.interpolate({ inputRange: [0, 1], outputRange: ["-22deg", "-6deg"] });
+  const stepRotate = walk.interpolate({ inputRange: [0, 1], outputRange: ["-12deg", "12deg"] });
+  const stepRotateInv = walk.interpolate({ inputRange: [0, 1], outputRange: ["12deg", "-12deg"] });
+  const toyBounce = toy.interpolate({ inputRange: [0, 1], outputRange: [0, -7] });
 
   return (
-    <Animated.View style={[styles.catWrap, { transform: [{ translateY: bobTranslate }] }]}>
+    <Animated.View
+      style={[
+        styles.catWrap,
+        mode === "lay" ? styles.catWrapLay : null,
+        { transform: [{ translateY: bobTranslate }] }
+      ]}
+    >
       <View style={styles.catHead}>
         <View style={[styles.catEar, styles.catEarLeft]} />
         <View style={[styles.catEarInner, styles.catEarInnerLeft]} />
@@ -376,18 +416,53 @@ function AnimatedCatMascot() {
         <View style={styles.catCollar} />
         <View style={styles.catBell} />
         <View style={styles.catLegRow}>
-          <View style={styles.catLeg}>
+          <Animated.View style={[styles.catLeg, mode === "walk" ? { transform: [{ rotate: stepRotate }] } : null]}>
             <View style={styles.catPaw} />
-          </View>
-          <View style={styles.catLeg}>
+          </Animated.View>
+          <Animated.View
+            style={[
+              styles.catLeg,
+              mode === "walk" ? { transform: [{ rotate: stepRotateInv }] } : null
+            ]}
+          >
             <View style={styles.catPaw} />
-          </View>
+          </Animated.View>
         </View>
       </View>
       <Animated.View style={[styles.catTail, { transform: [{ rotate: tailRotate }] }]}>
         <View style={styles.catTailTip} />
       </Animated.View>
+      {mode === "lay" ? (
+        <Animated.View style={[styles.toyBall, { transform: [{ translateY: toyBounce }] }]}>
+          <View style={styles.toyBallStripe} />
+        </Animated.View>
+      ) : null}
     </Animated.View>
+  );
+}
+
+function AppStatusOverlay({
+  mode,
+  message,
+  onCloseError
+}: {
+  mode: "loading" | "error";
+  message: string;
+  onCloseError?: () => void;
+}) {
+  return (
+    <View style={styles.appStatusOverlay}>
+      <View style={styles.appStatusCard}>
+        <AnimatedCatMascot mode={mode === "loading" ? "walk" : "lay"} />
+        <Text style={styles.appStatusTitle}>{mode === "loading" ? "Loading" : "Something went wrong"}</Text>
+        <Text style={styles.appStatusText}>{message}</Text>
+        {mode === "error" ? (
+          <TouchableOpacity style={styles.appStatusButton} onPress={onCloseError}>
+            <Text style={styles.appStatusButtonText}>Dismiss</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+    </View>
   );
 }
 
@@ -412,6 +487,8 @@ export default function App() {
   const [selectedCategory, setSelectedCategory] = React.useState("All");
   const [searchQuery, setSearchQuery] = React.useState("");
   const [liveShopsQuery, setLiveShopsQuery] = React.useState("");
+  const [liveShopsCategory, setLiveShopsCategory] = React.useState("All");
+  const [liveShopsOnlyLive, setLiveShopsOnlyLive] = React.useState(false);
   const [selectedLiveShopId, setSelectedLiveShopId] = React.useState<string | null>(null);
   const [liveShopsLocationVisible, setLiveShopsLocationVisible] = React.useState(false);
   const [selectedMapShopId, setSelectedMapShopId] = React.useState<string | null>(null);
@@ -428,6 +505,7 @@ export default function App() {
   const [streams, setStreams] = React.useState<LiveStream[]>(sampleFeed.streams);
   const [followedStreamers, setFollowedStreamers] = React.useState<Record<string, boolean>>({});
   const [selectedStreamId, setSelectedStreamId] = React.useState<string | null>(null);
+  const [selectedStreamerId, setSelectedStreamerId] = React.useState<string | null>(null);
   const [viewerRoomLikes, setViewerRoomLikes] = React.useState<Record<string, number>>({});
   const [viewerRoomChat, setViewerRoomChat] = React.useState<Record<string, ChatMessage[]>>({});
   const [viewerCommentInput, setViewerCommentInput] = React.useState("");
@@ -499,6 +577,7 @@ export default function App() {
   const [hiddenChatIds, setHiddenChatIds] = React.useState<Record<string, boolean>>({});
   const [blockedKeywords, setBlockedKeywords] = React.useState<string[]>(["spam"]);
   const [blockedKeywordInput, setBlockedKeywordInput] = React.useState("");
+  const [appErrorMessage, setAppErrorMessage] = React.useState<string | null>(null);
   const isDarkMode =
     appearanceMode === "system" ? (systemColorScheme ?? "dark") === "dark" : appearanceMode === "dark";
   const ui = React.useMemo(
@@ -526,22 +605,41 @@ export default function App() {
     }),
     [isDarkMode]
   );
+  const appLoadingMessage = React.useMemo(() => {
+    if (authProcessing) return "Preparing your account...";
+    if (paymentProcessing) return "Processing payment...";
+    if (detectingLocation) return "Finding nearby shops...";
+    if (capturingItemPhoto) return "Capturing item photo...";
+    return null;
+  }, [authProcessing, paymentProcessing, detectingLocation, capturingItemPhoto]);
   const liveShopsData = React.useMemo(() => {
     const query = liveShopsQuery.trim().toLowerCase();
-    return LIVE_SHOPS.map((shop) => ({
-      ...shop,
-      distance: distanceKm(userLocation.lat, userLocation.lng, shop.lat, shop.lng)
-    }))
+    return LIVE_SHOPS.map((shop) => {
+      const matchedLive = streams.find(
+        (stream) => stream.status === "live" && stream.category.toLowerCase() === shop.category.toLowerCase()
+      );
+      return {
+        ...shop,
+        distance: distanceKm(userLocation.lat, userLocation.lng, shop.lat, shop.lng),
+        isLive: Boolean(matchedLive)
+      };
+    })
       .filter((shop) =>
         query
-          ? `${shop.name} ${shop.city} ${shop.country} ${shop.category}`.toLowerCase().includes(query)
+          ? `${shop.name} ${shop.mall} ${shop.city} ${shop.country} ${shop.category}`.toLowerCase().includes(query)
           : true
       )
+      .filter((shop) => (liveShopsCategory === "All" ? true : shop.category === liveShopsCategory))
+      .filter((shop) => (liveShopsOnlyLive ? shop.isLive : true))
       .sort((a, b) => a.distance - b.distance);
-  }, [liveShopsQuery, userLocation.lat, userLocation.lng]);
+  }, [liveShopsQuery, userLocation.lat, userLocation.lng, streams, liveShopsCategory, liveShopsOnlyLive]);
   const selectedLiveShop = React.useMemo(
     () => (selectedLiveShopId ? LIVE_SHOPS.find((shop) => shop.id === selectedLiveShopId) ?? null : null),
     [selectedLiveShopId]
+  );
+  const liveShopCategories = React.useMemo(
+    () => ["All", ...Array.from(new Set(LIVE_SHOPS.map((shop) => shop.category)))],
+    []
   );
   const waitingSessionKey = React.useMemo(
     () => (selectedLiveShopId && selectedShopSession ? `${selectedLiveShopId}::${selectedShopSession}` : null),
@@ -689,6 +787,7 @@ export default function App() {
       setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
       Alert.alert("Location updated", "Nearby shops are now sorted based on your location.");
     } catch {
+      setAppErrorMessage("Location service is currently unavailable. Please try again.");
       Alert.alert("Location unavailable", "Could not read current location.");
     } finally {
       setDetectingLocation(false);
@@ -876,6 +975,17 @@ export default function App() {
   }, [streams]);
 
   const selectedStream = selectedStreamId ? streamById[selectedStreamId] : null;
+  const selectedStreamer = React.useMemo(
+    () =>
+      selectedStreamerId
+        ? streams.find((stream) => stream.streamer.id === selectedStreamerId)?.streamer ?? null
+        : null,
+    [selectedStreamerId, streams]
+  );
+  const selectedStreamerStreams = React.useMemo(
+    () => (selectedStreamerId ? streams.filter((stream) => stream.streamer.id === selectedStreamerId) : []),
+    [selectedStreamerId, streams]
+  );
   const activeLiveStream = activeLiveStreamId ? streamById[activeLiveStreamId] : null;
 
   const isFollowing = React.useCallback(
@@ -1172,6 +1282,24 @@ export default function App() {
       )
     );
     setSelectedStreamId(streamId);
+  };
+
+  const openStreamerProfile = (streamerId: string) => {
+    runSmoothLayout();
+    setSelectedStreamerId(streamerId);
+  };
+
+  const messageStreamer = (streamerName: string) => {
+    Alert.alert("Message sent", `Your message request was sent to ${streamerName}.`);
+  };
+
+  const reportStreamer = (streamerName: string) => {
+    Alert.alert("Report streamer", `Why are you reporting ${streamerName}?`, [
+      { text: "Spam or scam", onPress: () => Alert.alert("Report submitted", "Thanks. Our trust team will review this report.") },
+      { text: "Harassment", onPress: () => Alert.alert("Report submitted", "Thanks. Our trust team will review this report.") },
+      { text: "Prohibited items", onPress: () => Alert.alert("Report submitted", "Thanks. Our trust team will review this report.") },
+      { text: "Cancel", style: "cancel" }
+    ]);
   };
 
   const sendViewerComment = () => {
@@ -1490,11 +1618,13 @@ export default function App() {
       setCapturingItemPhoto(true);
       const result = await itemCameraRef.current.takePictureAsync({ quality: 0.8 });
       if (!result?.uri) {
+        setAppErrorMessage("Camera capture failed. Please retake the photo.");
         Alert.alert("Capture failed", "Could not capture item photo. Please try again.");
         return;
       }
       setItemCapturedPreviewUri(result.uri);
     } catch (_error) {
+      setAppErrorMessage("Camera capture failed. Please retake the photo.");
       Alert.alert("Capture failed", "Could not capture item photo. Please try again.");
     } finally {
       setCapturingItemPhoto(false);
@@ -1795,13 +1925,13 @@ export default function App() {
     return (
       <View style={[styles.liveCard, !isDarkMode ? styles.liveCardLight : null]}>
         <View style={styles.liveCardHeader}>
-          <View style={styles.hostSection}>
+          <TouchableOpacity style={styles.hostSection} onPress={() => openStreamerProfile(item.streamer.id)} activeOpacity={0.85}>
             <Image source={{ uri: item.streamer.avatarUrl }} style={styles.hostAvatar} />
             <View style={styles.hostMeta}>
               <Text style={[styles.hostName, !isDarkMode ? styles.hostNameLight : null]}>{item.streamer.displayName}</Text>
               <Text style={[styles.hostHandle, !isDarkMode ? styles.hostHandleLight : null]}>@{item.streamer.displayName.replace(/\s+/g, "").toLowerCase()}</Text>
             </View>
-          </View>
+          </TouchableOpacity>
           <View style={styles.liveCardBadges}>
             <View style={styles.liveBadge}>
               <Animated.View
@@ -1876,7 +2006,7 @@ export default function App() {
           Alert.alert(item.streamer.displayName, "Quick actions", [
             { text: "Join Live", onPress: () => openStreamRoom(item.id) },
             { text: following ? "Unfollow" : "Follow", onPress: () => toggleFollow(item.streamer.id) },
-            { text: "Go To Profile", onPress: () => setActiveTab("profile") },
+            { text: "Go To Profile", onPress: () => openStreamerProfile(item.streamer.id) },
             { text: "Cancel", style: "cancel" }
           ])
         }
@@ -2116,11 +2246,13 @@ export default function App() {
     <ThemeModeContext.Provider value={isDarkMode}>
     <SafeAreaView style={[styles.safeArea, { backgroundColor: ui.appBg }]}>
       <StatusBar style={isDarkMode ? "light" : "dark"} />
+      {appLoadingMessage ? <AppStatusOverlay mode="loading" message={appLoadingMessage} /> : null}
+      {appErrorMessage ? <AppStatusOverlay mode="error" message={appErrorMessage} onCloseError={() => setAppErrorMessage(null)} /> : null}
 
       {activeTab === "home" ? (
         <Animated.View style={[styles.feedSwipeContainer, screenTransitionStyle]} {...swipeResponder.panHandlers}>
           {!selectedStream ? (
-            <View style={[styles.homeHeaderWrap, { backgroundColor: ui.appBg }]}>
+            <View style={[styles.homeHeaderWrap, !isDarkMode ? styles.homeHeaderWrapLight : null, { backgroundColor: ui.appBg }]}>
               <View style={styles.topBar}>
                 <View style={styles.topBarSide}>
                   <Text style={[styles.brand, { color: ui.label }]}>NINELIVE</Text>
@@ -2139,14 +2271,14 @@ export default function App() {
                   </View>
                 </View>
                 <View style={[styles.topBarSide, styles.topBarSideRight]}>
-                  <TouchableOpacity style={[styles.searchBtn, { borderColor: ui.outline }]} onPress={() => setSearchModalVisible(true)}>
+                  <TouchableOpacity style={[styles.searchBtn, !isDarkMode ? styles.searchBtnLight : null, { borderColor: ui.outline }]} onPress={() => setSearchModalVisible(true)}>
                     <Text style={[styles.searchLabel, { color: ui.label }]}>Search</Text>
                   </TouchableOpacity>
                 </View>
               </View>
-              <View style={styles.tokenPill}>
+              <View style={[styles.tokenPill, !isDarkMode ? styles.tokenPillLight : null]}>
                 <CatCoinIcon size={15} />
-                <Text style={styles.tokenPillText}>{tokenBalance} Cat Coins</Text>
+                <Text style={[styles.tokenPillText, !isDarkMode ? styles.tokenPillTextLight : null]}>{tokenBalance} Cat Coins</Text>
               </View>
             </View>
           ) : null}
@@ -2213,6 +2345,14 @@ export default function App() {
                   </TouchableOpacity>
                   <Text style={styles.shopScheduleTitle}>{selectedLiveShop.name}</Text>
                   <Text style={styles.shopScheduleSubtitle}>{selectedLiveShop.category} · {selectedLiveShop.city}, {selectedLiveShop.country}</Text>
+                  <View style={styles.shopScheduleMetaRow}>
+                    <View style={[styles.liveShopStatusPill, streams.some((s) => s.status === "live" && s.category.toLowerCase() === selectedLiveShop.category.toLowerCase()) ? styles.liveShopStatusLive : styles.liveShopStatusOffline]}>
+                      <Text style={styles.liveShopStatusText}>
+                        {streams.some((s) => s.status === "live" && s.category.toLowerCase() === selectedLiveShop.category.toLowerCase()) ? "Shop Is Live" : "Next Session"}
+                      </Text>
+                    </View>
+                    <Text style={styles.shopScheduleMetaText}>{selectedLiveShop.viewers.toLocaleString()} viewers following this shop</Text>
+                  </View>
                   {!selectedShopSession ? (
                     <View style={styles.shopScheduleTimes}>
                       {["12:00 PM", "6:00 PM", "9:30 PM"].map((slot) => (
@@ -2245,7 +2385,7 @@ export default function App() {
                         </TouchableOpacity>
                       </View>
                       <TouchableOpacity style={styles.shopWaitingEnterBtn} onPress={enterShopLiveNow}>
-                        <Text style={styles.shopWaitingEnterText}>Enter Live Now (Demo)</Text>
+                        <Text style={styles.shopWaitingEnterText}>Enter Live Now</Text>
                       </TouchableOpacity>
                     </View>
                   )}
@@ -2269,21 +2409,59 @@ export default function App() {
                     style={[styles.liveShopsSearchInput, { backgroundColor: surfaces.inputBg, borderColor: surfaces.inputBorder, color: surfaces.inputText }]}
                     value={liveShopsQuery}
                     onChangeText={setLiveShopsQuery}
-                    placeholder="Search shops, cities, categories"
+                    placeholder="Search shops, malls, cities, categories"
                     placeholderTextColor="#8f8f8f"
                   />
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.liveShopFilterRow}>
+                    {liveShopCategories.map((category) => (
+                      <TouchableOpacity
+                        key={`live-shop-cat-${category}`}
+                        style={[styles.liveShopFilterChip, liveShopsCategory === category ? styles.liveShopFilterChipActive : null]}
+                        onPress={() => setLiveShopsCategory(category)}
+                      >
+                        <Text style={styles.liveShopFilterChipText}>{category}</Text>
+                      </TouchableOpacity>
+                    ))}
+                    <TouchableOpacity
+                      style={[styles.liveShopFilterChip, liveShopsOnlyLive ? styles.liveShopFilterChipActive : null]}
+                      onPress={() => setLiveShopsOnlyLive((prev) => !prev)}
+                    >
+                      <Text style={styles.liveShopFilterChipText}>{liveShopsOnlyLive ? "Live Only: On" : "Live Only"}</Text>
+                    </TouchableOpacity>
+                  </ScrollView>
                 </View>
                 <ScrollView contentContainerStyle={styles.liveShopsList}>
+                  {liveShopsData.length === 0 ? (
+                    <View style={[styles.emptyState, { height: 220 }]}>
+                      <Text style={styles.emptyStateTitle}>No shops match these filters</Text>
+                      <Text style={styles.emptyStateText}>Try switching category or disabling Live Only.</Text>
+                      <TouchableOpacity
+                        style={styles.emptyStateButton}
+                        onPress={() => {
+                          setLiveShopsQuery("");
+                          setLiveShopsCategory("All");
+                          setLiveShopsOnlyLive(false);
+                        }}
+                      >
+                        <Text style={styles.emptyStateButtonText}>Reset Filters</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : null}
                   {liveShopsData.map((shop) => (
                     <TouchableOpacity key={shop.id} style={[styles.liveShopCard, { backgroundColor: surfaces.cardBg, borderColor: surfaces.cardBorder }]} onPress={() => setSelectedLiveShopId(shop.id)}>
                       <Image source={{ uri: shop.logoUrl }} style={styles.liveShopLogo} />
                       <View style={styles.liveShopMeta}>
                         <Text style={[styles.liveShopName, { color: surfaces.title }]}>{shop.name}</Text>
-                        <Text style={[styles.liveShopSub, { color: surfaces.body }]}>{shop.city}, {shop.country} · {shop.category}</Text>
+                        <Text style={[styles.liveShopSub, { color: surfaces.body }]}>{shop.city}, {shop.mall} · {shop.category}</Text>
                         <Text style={styles.liveShopViewers}>{shop.viewers.toLocaleString()} watching</Text>
                       </View>
-                      <View style={styles.liveShopDistancePill}>
-                        <Text style={styles.liveShopDistanceText}>{shop.distance.toFixed(1)} km</Text>
+                      <View style={styles.liveShopRightMeta}>
+                        <View style={[styles.liveShopStatusPill, shop.isLive ? styles.liveShopStatusLive : styles.liveShopStatusOffline]}>
+                          <Text style={styles.liveShopStatusText}>{shop.isLive ? "LIVE" : "OFFLINE"}</Text>
+                        </View>
+                        <View style={styles.liveShopDistancePill}>
+                          <Text style={styles.liveShopDistanceText}>{shop.distance.toFixed(1)} km</Text>
+                        </View>
                       </View>
                     </TouchableOpacity>
                   ))}
@@ -2522,8 +2700,8 @@ export default function App() {
             </View>
           ) : (
             <ScrollView contentContainerStyle={styles.goLiveContent}>
-              <Text style={styles.goLiveHeader}>Go Live Studio</Text>
-              <Text style={styles.goLiveSubheader}>Create limited drops, then broadcast instantly.</Text>
+              <Text style={[styles.goLiveHeader, !isDarkMode ? styles.goLiveHeaderLight : null]}>Go Live Studio</Text>
+              <Text style={[styles.goLiveSubheader, !isDarkMode ? styles.goLiveSubheaderLight : null]}>Create limited drops, then broadcast instantly.</Text>
 
               <View style={[styles.cameraStage, !isDarkMode ? styles.cameraStageLight : null]}>
                 {cameraPermission?.granted ? (
@@ -2531,8 +2709,8 @@ export default function App() {
                 ) : (
                   <View style={styles.permissionCard}>
                     <Ionicons name="videocam-outline" size={36} color="#ff8cab" />
-                    <Text style={styles.permissionTitle}>Enable Camera</Text>
-                    <Text style={styles.permissionText}>
+                    <Text style={[styles.permissionTitle, !isDarkMode ? styles.permissionTitleLight : null]}>Enable Camera</Text>
+                    <Text style={[styles.permissionText, !isDarkMode ? styles.permissionTextLight : null]}>
                       Ninelive needs camera access so streamers can broadcast live.
                     </Text>
                     <TouchableOpacity style={styles.permissionButton} onPress={() => requestCameraPermission()}>
@@ -2871,13 +3049,13 @@ export default function App() {
             </View>
             <View style={styles.drawerSegmentRow}>
               <TouchableOpacity style={[styles.drawerSegmentBtn, !isDarkMode ? styles.drawerSegmentBtnLight : null, profileDrawerSection === "wallet" ? styles.drawerSegmentBtnActive : null]} onPress={() => setProfileDrawerSection("wallet")}>
-                <Text style={[styles.drawerSegmentText, !isDarkMode ? styles.drawerSegmentTextLight : null, profileDrawerSection === "wallet" ? styles.drawerSegmentTextActive : null]}>Wallet</Text>
+                <Text style={[styles.drawerSegmentText, !isDarkMode ? styles.drawerSegmentTextLight : null, profileDrawerSection === "wallet" ? styles.drawerSegmentTextActive : null, !isDarkMode && profileDrawerSection === "wallet" ? styles.drawerSegmentTextActiveLight : null]}>Wallet</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.drawerSegmentBtn, !isDarkMode ? styles.drawerSegmentBtnLight : null, profileDrawerSection === "settings" || profileDrawerSection === "menu" ? styles.drawerSegmentBtnActive : null]} onPress={() => setProfileDrawerSection("settings")}>
-                <Text style={[styles.drawerSegmentText, !isDarkMode ? styles.drawerSegmentTextLight : null, profileDrawerSection === "settings" || profileDrawerSection === "menu" ? styles.drawerSegmentTextActive : null]}>Settings</Text>
+                <Text style={[styles.drawerSegmentText, !isDarkMode ? styles.drawerSegmentTextLight : null, profileDrawerSection === "settings" || profileDrawerSection === "menu" ? styles.drawerSegmentTextActive : null, !isDarkMode && (profileDrawerSection === "settings" || profileDrawerSection === "menu") ? styles.drawerSegmentTextActiveLight : null]}>Settings</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.drawerSegmentBtn, !isDarkMode ? styles.drawerSegmentBtnLight : null, profileDrawerSection === "orders" ? styles.drawerSegmentBtnActive : null]} onPress={() => setProfileDrawerSection("orders")}>
-                <Text style={[styles.drawerSegmentText, !isDarkMode ? styles.drawerSegmentTextLight : null, profileDrawerSection === "orders" ? styles.drawerSegmentTextActive : null]}>Orders</Text>
+                <Text style={[styles.drawerSegmentText, !isDarkMode ? styles.drawerSegmentTextLight : null, profileDrawerSection === "orders" ? styles.drawerSegmentTextActive : null, !isDarkMode && profileDrawerSection === "orders" ? styles.drawerSegmentTextActiveLight : null]}>Orders</Text>
               </TouchableOpacity>
             </View>
 
@@ -2888,17 +3066,17 @@ export default function App() {
                     <CatCoinIcon size={18} />
                     <Text style={[styles.walletTitle, { color: surfaces.title }]}>Cat Coins Wallet</Text>
                   </View>
-                  <Text style={styles.walletBalance}>{tokenBalance} Cat Coins</Text>
                 </View>
+                <Text style={styles.walletBalance}>{tokenBalance} Cat Coins</Text>
                 <Text style={[styles.walletSubtext, { color: surfaces.body }]}>Buy Cat Coins packs and reserve items instantly.</Text>
                 <View style={styles.tokenPackRow}>
-                  <TouchableOpacity style={styles.tokenPackButton} onPress={() => openTokenRecharge(300)}>
+                  <TouchableOpacity style={[styles.tokenPackButton, styles.tokenPackButtonHalf]} onPress={() => openTokenRecharge(300)}>
                     <Text style={styles.tokenPackLabel}>+300 • $4.99</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.tokenPackButton} onPress={() => openTokenRecharge(800)}>
+                  <TouchableOpacity style={[styles.tokenPackButton, styles.tokenPackButtonHalf]} onPress={() => openTokenRecharge(800)}>
                     <Text style={styles.tokenPackLabel}>+800 • $11.99</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.tokenPackButton} onPress={() => openTokenRecharge(1500)}>
+                  <TouchableOpacity style={[styles.tokenPackButton, styles.tokenPackButtonFull]} onPress={() => openTokenRecharge(1500)}>
                     <Text style={styles.tokenPackLabel}>+1500 • $19.99</Text>
                   </TouchableOpacity>
                 </View>
@@ -3046,24 +3224,61 @@ export default function App() {
               </TouchableOpacity>
             </View>
             <Text style={[styles.shopPickerHint, { color: surfaces.body }]}>
-              Pick a shop area to simulate your location, or use GPS for nearest shops.
+              Logical map hub for now. Ready for direct Google Maps API integration next.
             </Text>
-            <TouchableOpacity style={styles.locationActionButton} onPress={detectCurrentLocation} disabled={detectingLocation}>
-              <Ionicons name="locate-outline" size={14} color="#fff" />
-              <Text style={styles.locationActionButtonText}>{detectingLocation ? "Detecting..." : "Use Current Location"}</Text>
+            <View style={styles.shopMapCanvas}>
+              <View style={styles.shopMapGrid} />
+              {liveShopsData.slice(0, 7).map((shop, idx) => (
+                <View
+                  key={`map-pin-${shop.id}`}
+                  style={[
+                    styles.shopMapPin,
+                    {
+                      left: 22 + (idx % 3) * 96 + (idx % 2 ? 12 : 0),
+                      top: 26 + Math.floor(idx / 3) * 58
+                    }
+                  ]}
+                >
+                  <View style={[styles.shopMapPinDot, shop.isLive ? styles.shopMapPinDotLive : null]} />
+                  <Text style={styles.shopMapPinLabel} numberOfLines={1}>{shop.city}</Text>
+                </View>
+              ))}
+              <View style={styles.shopMapCenterBadge}>
+                <Text style={styles.shopMapCenterText}>You</Text>
+              </View>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.shopMapRegionRow}>
+              {["Bahrain", "GCC", "Asia", "Europe", "North America"].map((region) => (
+                <TouchableOpacity key={`region-${region}`} style={styles.shopMapRegionChip}>
+                  <Text style={styles.shopMapRegionText}>{region}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity
+              style={styles.locationActionButton}
+              onPress={detectCurrentLocation}
+              disabled={detectingLocation}
+            >
+              <Ionicons name="navigate-outline" size={14} color="#fff" />
+              <Text style={styles.locationActionButtonText}>
+                {detectingLocation ? "Setting..." : "Set My Location"}
+              </Text>
             </TouchableOpacity>
+            <Text style={[styles.shopPickerHint, { color: surfaces.body, marginTop: 8, marginBottom: 4 }]}>
+              Nearest live shops to your location
+            </Text>
             <ScrollView style={styles.shopPickerList} contentContainerStyle={styles.shopPickerListContent}>
-              {LIVE_SHOPS.map((shop) => (
+              {liveShopsData.slice(0, 12).map((shop) => (
                 <View key={`picker-${shop.id}`} style={[styles.shopPickerRow, !isDarkMode ? styles.shopPickerRowLight : null]}>
                   <View style={styles.shopPickerMeta}>
                     <Text style={[styles.shopPickerName, !isDarkMode ? styles.shopPickerNameLight : null]}>{shop.name}</Text>
-                    <Text style={[styles.shopPickerSub, !isDarkMode ? styles.shopPickerSubLight : null]}>{shop.city}, {shop.country}</Text>
+                    <Text style={[styles.shopPickerSub, !isDarkMode ? styles.shopPickerSubLight : null]}>{shop.city}, {shop.mall} · {shop.distance.toFixed(1)} km</Text>
                   </View>
                   <TouchableOpacity
                     style={[styles.shopPickerAction, selectedMapShopId === shop.id ? styles.shopPickerActionActive : null]}
                     onPress={() => chooseShopFromMap(shop)}
                   >
-                    <Text style={styles.shopPickerActionText}>Set As My Location</Text>
+                    <Text style={styles.shopPickerActionText}>Use This Area</Text>
                   </TouchableOpacity>
                 </View>
               ))}
@@ -3093,13 +3308,17 @@ export default function App() {
               {rechargePackages.map((pack) => (
                 <TouchableOpacity
                   key={pack.tokens}
-                  style={[styles.paymentPackCard, selectedRechargeTokens === pack.tokens ? styles.paymentPackCardActive : null]}
+                  style={[
+                    styles.paymentPackCard,
+                    !isDarkMode ? styles.paymentPackCardLight : null,
+                    selectedRechargeTokens === pack.tokens ? styles.paymentPackCardActive : null
+                  ]}
                   onPress={() => {
                     setSelectedRechargeTokens(pack.tokens);
                     setUseCustomRecharge(false);
                   }}
                 >
-                  <Text style={styles.paymentPackBadge}>{pack.badge}</Text>
+                  <Text style={[styles.paymentPackBadge, !isDarkMode ? styles.paymentPackBadgeLight : null]}>{pack.badge}</Text>
                   <Text style={[styles.paymentPackTokens, !isDarkMode ? { color: "#111" } : null]}> {pack.tokens} Cat Coins</Text>
                   <Text style={[styles.paymentPackPrice, !isDarkMode ? styles.paymentPackPriceLight : null]}>${pack.usd.toFixed(2)}</Text>
                 </TouchableOpacity>
@@ -3343,6 +3562,74 @@ export default function App() {
       </Modal>
 
       <Modal
+        visible={Boolean(selectedStreamer)}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSelectedStreamerId(null)}
+      >
+        <View style={styles.searchOverlay}>
+          <Pressable style={styles.searchBackdrop} onPress={() => setSelectedStreamerId(null)} />
+          <View style={[styles.searchSheet, { backgroundColor: surfaces.sheetBg }]}>
+            {selectedStreamer ? (
+              <>
+                <View style={styles.searchSheetHeader}>
+                  <Text style={[styles.searchSheetTitle, { color: surfaces.title }]}>Streamer Profile</Text>
+                  <TouchableOpacity onPress={() => setSelectedStreamerId(null)}>
+                    <Ionicons name="close" size={22} color={surfaces.title} />
+                  </TouchableOpacity>
+                </View>
+                <View style={[styles.streamerProfileCard, { backgroundColor: surfaces.cardBg, borderColor: surfaces.cardBorder }]}>
+                  <Image source={{ uri: selectedStreamer.avatarUrl }} style={styles.streamerProfileAvatar} />
+                  <Text style={[styles.streamerProfileName, { color: surfaces.title }]}>{selectedStreamer.displayName}</Text>
+                  <Text style={[styles.streamerProfileHandle, { color: surfaces.body }]}>@{selectedStreamer.displayName.replace(/\s+/g, "").toLowerCase()}</Text>
+                  <Text style={[styles.streamerProfileBio, { color: surfaces.body }]}>Live seller on Ninelive. Limited drops, real-time shopping, and fast reserve confirmations.</Text>
+                  <View style={styles.streamerProfileStatsRow}>
+                    <StatTile label="Live Now" value={`${selectedStreamerStreams.filter((stream) => stream.status === "live").length}`} />
+                    <StatTile label="Total Streams" value={`${selectedStreamerStreams.length}`} />
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => toggleFollow(selectedStreamer.id)}
+                    style={[styles.followButton, isFollowing(selectedStreamer.id) ? styles.followingButton : styles.followCtaButton, { alignSelf: "stretch", marginTop: 10 }]}
+                  >
+                    <Text style={[styles.followButtonText, isFollowing(selectedStreamer.id) && !isDarkMode ? styles.followButtonTextLight : null]}>
+                      {isFollowing(selectedStreamer.id) ? "Following" : "Follow Streamer"}
+                    </Text>
+                  </TouchableOpacity>
+                  <View style={styles.streamerProfileActionsRow}>
+                    <TouchableOpacity style={styles.streamerMessageButton} onPress={() => messageStreamer(selectedStreamer.displayName)}>
+                      <Text style={styles.streamerMessageButtonText}>Message</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.streamerReportButton} onPress={() => reportStreamer(selectedStreamer.displayName)}>
+                      <Text style={styles.streamerReportButtonText}>Report</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                <Text style={[styles.searchHint, { color: surfaces.body }]}>Recent livestreams</Text>
+                <ScrollView style={{ maxHeight: 220 }}>
+                  {selectedStreamerStreams.map((stream) => (
+                    <TouchableOpacity
+                      key={`profile-stream-${stream.id}`}
+                      style={[styles.orderRow, { borderColor: surfaces.cardBorder, backgroundColor: surfaces.cardBg }]}
+                      onPress={() => {
+                        setSelectedStreamerId(null);
+                        openStreamRoom(stream.id);
+                      }}
+                    >
+                      <View>
+                        <Text style={[styles.orderTitle, { color: surfaces.title }]}>{stream.title}</Text>
+                        <Text style={[styles.orderMeta, { color: surfaces.body }]}>{stream.category} • {stream.viewerCount.toLocaleString()} viewers</Text>
+                      </View>
+                      <Text style={styles.orderTokens}>{stream.status === "live" ? "LIVE" : "Ended"}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
         visible={Boolean(selectedStream)}
         transparent
         animationType="fade"
@@ -3366,9 +3653,13 @@ export default function App() {
                 <View style={styles.roomTopOverlay}>
                   <View style={styles.roomTopLeftBlock}>
                     <View style={styles.roomStreamerTopRow}>
-                      <Image source={{ uri: selectedStream.streamer.avatarUrl }} style={styles.roomHostAvatar} />
+                      <TouchableOpacity onPress={() => openStreamerProfile(selectedStream.streamer.id)} activeOpacity={0.85}>
+                        <Image source={{ uri: selectedStream.streamer.avatarUrl }} style={styles.roomHostAvatar} />
+                      </TouchableOpacity>
                       <View style={styles.roomHostMeta}>
-                        <Text style={styles.roomTitle}>{selectedStream.streamer.displayName}</Text>
+                        <TouchableOpacity onPress={() => openStreamerProfile(selectedStream.streamer.id)} activeOpacity={0.85}>
+                          <Text style={styles.roomTitle}>{selectedStream.streamer.displayName}</Text>
+                        </TouchableOpacity>
                         <Text style={styles.roomSubTitle}>{selectedStream.title}</Text>
                       </View>
                       <TouchableOpacity
@@ -3547,11 +3838,12 @@ export default function App() {
           onPress={() => setActiveTab("cart")}
         />
           <TabButton
-          label="Profile"
+          label="Me"
           active={activeTab === "profile"}
           activeColor="#8fc9ff"
           inactiveColor={ui.subLabel}
           icon={activeTab === "profile" ? "person" : "person-outline"}
+          avatarUrl={profileAvatar}
           onPress={() => setActiveTab("profile")}
         />
         </View>
@@ -3717,6 +4009,44 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end"
   },
   catTailTip: { width: 16, height: 13, borderRadius: 7, backgroundColor: "#f5f5f5", alignSelf: "flex-end" },
+  catWrapLay: { transform: [{ rotate: "-8deg" }], marginTop: 8 },
+  toyBall: {
+    position: "absolute",
+    right: 14,
+    bottom: -4,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "#ff6f3d",
+    borderWidth: 1,
+    borderColor: "#d4512a",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  toyBallStripe: { width: 18, height: 3, borderRadius: 2, backgroundColor: "#ffd8ca", transform: [{ rotate: "-25deg" }] },
+  appStatusOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 50,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20
+  },
+  appStatusCard: {
+    width: "100%",
+    maxWidth: 320,
+    borderRadius: 16,
+    backgroundColor: "rgba(14,14,14,0.95)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    alignItems: "center"
+  },
+  appStatusTitle: { marginTop: 8, color: "#ffffff", fontSize: 18, fontWeight: "900" },
+  appStatusText: { marginTop: 6, color: "#d1d1d1", fontSize: 12, textAlign: "center", lineHeight: 18 },
+  appStatusButton: { marginTop: 12, borderRadius: 999, backgroundColor: "#ff2d55", paddingHorizontal: 14, paddingVertical: 8 },
+  appStatusButtonText: { color: "#fff", fontSize: 12, fontWeight: "800" },
   authCard: {
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.12)",
@@ -3809,12 +4139,12 @@ const styles = StyleSheet.create({
   darkOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0, 0, 0, 0.34)" },
   bottomFade: { position: "absolute", left: 0, right: 0, bottom: 0, height: "45%", backgroundColor: "rgba(0,0,0,0.55)" },
   overlay: { flex: 1, justifyContent: "space-between" },
-  topBar: { paddingHorizontal: 16, paddingTop: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  topBarSide: { flex: 1, justifyContent: "center" },
+  topBar: { paddingHorizontal: 16, paddingTop: 8, minHeight: 44, flexDirection: "row", alignItems: "center" },
+  topBarSide: { width: 104, justifyContent: "center" },
   topBarSideRight: { alignItems: "flex-end" },
-  brand: { color: "#f9f6ef", fontSize: 12, fontWeight: "900", letterSpacing: 1.4, textAlign: "left" },
-  tabs: { flex: 1.35, alignItems: "center", justifyContent: "center" },
-  feedTabRow: { flexDirection: "row", alignItems: "center", gap: 14 },
+  brand: { color: "#f9f6ef", fontSize: 11, fontWeight: "900", letterSpacing: 1.2, textAlign: "left" },
+  tabs: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 4 },
+  feedTabRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   feedTabButton: { paddingVertical: 2, paddingBottom: 6, borderBottomWidth: 2, borderBottomColor: "transparent" },
   feedTabButtonActive: { borderBottomColor: "#ff2d55" },
   inactiveTab: { color: "rgba(255,255,255,0.6)", fontSize: 15, fontWeight: "600" },
@@ -3865,9 +4195,12 @@ const styles = StyleSheet.create({
     borderRadius: 999
   },
   searchBtn: { borderWidth: 1, borderColor: "rgba(255,255,255,0.35)", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  searchBtnLight: { backgroundColor: "#ffffff" },
   searchLabel: { color: "#ffffff", fontSize: 12, fontWeight: "700" },
   tokenPill: { marginTop: 8, marginHorizontal: 16, alignSelf: "flex-end", backgroundColor: "rgba(0,0,0,0.45)", borderWidth: 1, borderColor: "rgba(255,255,255,0.2)", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, flexDirection: "row", alignItems: "center", gap: 6 },
+  tokenPillLight: { backgroundColor: "#ffffff", borderColor: "rgba(20,20,20,0.18)" },
   tokenPillText: { color: "#ffe08f", fontSize: 12, fontWeight: "800" },
+  tokenPillTextLight: { color: "#865600" },
   catCoinBase: {
     justifyContent: "center",
     alignItems: "center",
@@ -3932,6 +4265,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255,255,255,0.08)"
   },
+  homeHeaderWrapLight: { borderBottomColor: "rgba(20,20,20,0.10)" },
   liveCard: {
     backgroundColor: "#131313",
     borderWidth: 1,
@@ -4125,7 +4459,9 @@ const styles = StyleSheet.create({
   goLiveScreen: { flex: 1, backgroundColor: "#080808" },
   goLiveContent: { paddingHorizontal: 14, paddingTop: 14, paddingBottom: 110, gap: 12 },
   goLiveHeader: { color: "#ffffff", fontSize: 26, fontWeight: "900" },
+  goLiveHeaderLight: { color: "#111111" },
   goLiveSubheader: { color: "#bdbdbd", fontSize: 14 },
+  goLiveSubheaderLight: { color: "#2f2f2f" },
   liveFullscreenRoot: { flex: 1, backgroundColor: "#000" },
   liveFullscreenCamera: { ...StyleSheet.absoluteFillObject },
   liveFullscreenTopShade: {
@@ -4571,7 +4907,9 @@ const styles = StyleSheet.create({
   cameraPreview: { height: 270 },
   permissionCard: { height: 270, alignItems: "center", justifyContent: "center", paddingHorizontal: 24 },
   permissionTitle: { color: "#ffffff", fontSize: 20, fontWeight: "900", marginTop: 10 },
+  permissionTitleLight: { color: "#111111" },
   permissionText: { color: "#c7c7c7", textAlign: "center", lineHeight: 20, marginTop: 8 },
+  permissionTextLight: { color: "#2f2f2f" },
   permissionButton: { marginTop: 16, backgroundColor: "#ff2d55", borderRadius: 999, paddingHorizontal: 16, paddingVertical: 10 },
   permissionButtonText: { color: "#ffffff", fontWeight: "800", fontSize: 13 },
   cameraControls: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 10, paddingVertical: 9, backgroundColor: "rgba(0,0,0,0.65)" },
@@ -4719,15 +5057,15 @@ const styles = StyleSheet.create({
     paddingVertical: 7
   },
   profileSignOutText: { color: "#ffc2d0", fontSize: 11, fontWeight: "800" },
-  walletCard: { backgroundColor: "#151515", borderWidth: 1, borderColor: "rgba(255,255,255,0.12)", borderRadius: 16, padding: 12 },
-  walletHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  walletTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  walletCard: { marginTop: 4, backgroundColor: "#151515", borderWidth: 1, borderColor: "rgba(255,255,255,0.12)", borderRadius: 16, padding: 14 },
+  walletHeader: { flexDirection: "row", alignItems: "center", justifyContent: "flex-start" },
+  walletTitleRow: { flexDirection: "row", alignItems: "center", gap: 8, minWidth: 0 },
   walletTitle: { color: "#ffffff", fontSize: 16, fontWeight: "800" },
-  walletBalance: { color: "#ffe08f", fontSize: 16, fontWeight: "900" },
-  walletSubtext: { marginTop: 6, color: "#c0c0c0", fontSize: 12 },
-  tokenPackRow: { marginTop: 10, flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  walletBalance: { color: "#ffe08f", fontSize: 22, fontWeight: "900", marginTop: 10 },
+  walletSubtext: { marginTop: 6, color: "#c0c0c0", fontSize: 12, lineHeight: 18 },
+  tokenPackRow: { marginTop: 12, flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", gap: 8 },
   tokenPackButton: {
-    width: "48%",
+    minHeight: 40,
     backgroundColor: "rgba(255,194,82,0.18)",
     borderWidth: 1,
     borderColor: "rgba(255,224,143,0.45)",
@@ -4736,13 +5074,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     alignItems: "center"
   },
+  tokenPackButtonHalf: { width: "48.5%" },
+  tokenPackButtonFull: { width: "100%" },
   tokenPackLabel: { color: "#ffe08f", fontSize: 11, fontWeight: "800", textAlign: "center" },
   walletRechargeButton: {
-    marginTop: 10,
+    marginTop: 12,
     borderRadius: 10,
     backgroundColor: "#ff2d55",
     alignItems: "center",
-    paddingVertical: 10
+    paddingVertical: 11
   },
   walletRechargeButtonText: { color: "#fff", fontSize: 12, fontWeight: "800" },
   paymentSectionLabel: { marginTop: 10, marginBottom: 7, color: "#ddd", fontSize: 12, fontWeight: "700" },
@@ -4756,8 +5096,10 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 10
   },
+  paymentPackCardLight: { borderColor: "rgba(20,20,20,0.14)", backgroundColor: "#ffffff" },
   paymentPackCardActive: { borderColor: "#ff2d55", backgroundColor: "rgba(255,45,85,0.16)" },
   paymentPackBadge: { color: "#ffd8a6", fontSize: 10, fontWeight: "800", marginBottom: 4 },
+  paymentPackBadgeLight: { color: "#8b5a00" },
   paymentPackTokens: { color: "#fff", fontSize: 12, fontWeight: "800" },
   paymentPackPrice: { color: "#ffe08f", fontSize: 11, marginTop: 4, fontWeight: "700" },
   paymentPackPriceLight: { color: "#9b6500" },
@@ -4815,7 +5157,7 @@ const styles = StyleSheet.create({
   settingTitle: { color: "#fff", fontSize: 13, fontWeight: "700" },
   settingTitleLight: { color: "#111111" },
   settingSubtitle: { marginTop: 4, color: "#b2b2b2", fontSize: 11 },
-  settingSubtitleLight: { color: "#606060" },
+  settingSubtitleLight: { color: "#4f4f4f" },
   appearanceRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   appearanceChip: {
     borderRadius: 999,
@@ -4835,16 +5177,29 @@ const styles = StyleSheet.create({
   orderTitle: { color: "#ffffff", fontSize: 12, fontWeight: "700" },
   orderMeta: { marginTop: 4, color: "#aaaaaa", fontSize: 11 },
   orderTokens: { color: "#ffe08f", fontSize: 12, fontWeight: "800" },
-  drawerOverlay: { flex: 1, flexDirection: "row" },
+  streamerProfileCard: { borderWidth: 1, borderRadius: 14, padding: 12, alignItems: "center", marginBottom: 10 },
+  streamerProfileAvatar: { width: 72, height: 72, borderRadius: 36, borderWidth: 1, borderColor: "rgba(255,255,255,0.24)" },
+  streamerProfileName: { marginTop: 8, fontSize: 17, fontWeight: "900" },
+  streamerProfileHandle: { marginTop: 2, fontSize: 12, fontWeight: "700" },
+  streamerProfileBio: { marginTop: 8, fontSize: 12, lineHeight: 18, textAlign: "center" },
+  streamerProfileStatsRow: { width: "100%", flexDirection: "row", gap: 8, marginTop: 10 },
+  streamerProfileActionsRow: { width: "100%", flexDirection: "row", gap: 8, marginTop: 10 },
+  streamerMessageButton: { flex: 1, borderRadius: 10, backgroundColor: "#2274ff", alignItems: "center", paddingVertical: 9 },
+  streamerMessageButtonText: { color: "#ffffff", fontSize: 12, fontWeight: "800" },
+  streamerReportButton: { flex: 1, borderRadius: 10, borderWidth: 1, borderColor: "rgba(255,130,145,0.6)", backgroundColor: "rgba(255,45,85,0.14)", alignItems: "center", paddingVertical: 9 },
+  streamerReportButtonText: { color: "#ff8fa4", fontSize: 12, fontWeight: "800" },
+  drawerOverlay: { flex: 1, flexDirection: "row", justifyContent: "flex-end" },
   drawerBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.30)" },
   drawerPanel: {
-    width: "80%",
+    width: "82%",
+    maxWidth: 390,
+    height: "100%",
     backgroundColor: "#121212",
     borderLeftWidth: 1,
     borderLeftColor: "rgba(255,255,255,0.14)",
-    paddingHorizontal: 12,
-    paddingTop: 54,
-    paddingBottom: 14
+    paddingHorizontal: 14,
+    paddingTop: 22,
+    paddingBottom: 20
   },
   drawerSegmentRow: { flexDirection: "row", gap: 8, marginTop: 10, marginBottom: 10 },
   drawerSegmentBtn: { flex: 1, borderRadius: 999, borderWidth: 1, borderColor: "rgba(255,255,255,0.2)", backgroundColor: "#1d1d1d", paddingVertical: 8, alignItems: "center" },
@@ -4853,6 +5208,7 @@ const styles = StyleSheet.create({
   drawerSegmentText: { color: "#ffffff", fontSize: 11, fontWeight: "800" },
   drawerSegmentTextLight: { color: "#111111" },
   drawerSegmentTextActive: { color: "#ffffff" },
+  drawerSegmentTextActiveLight: { color: "#111111" },
   checkoutNotesInput: { minHeight: 70, textAlignVertical: "top" },
   checkoutItemRow: {
     marginTop: 8,
@@ -5246,6 +5602,17 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 13
   },
+  liveShopFilterRow: { marginTop: 10, gap: 8, paddingRight: 6 },
+  liveShopFilterChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.22)",
+    backgroundColor: "rgba(0,0,0,0.25)",
+    paddingHorizontal: 11,
+    paddingVertical: 6
+  },
+  liveShopFilterChipActive: { borderColor: "#ff2d55", backgroundColor: "rgba(255,45,85,0.28)" },
+  liveShopFilterChipText: { color: "#fff", fontSize: 11, fontWeight: "700" },
   liveShopsList: { paddingHorizontal: 12, paddingBottom: 120, gap: 8 },
   liveShopCard: {
     borderWidth: 1,
@@ -5260,6 +5627,11 @@ const styles = StyleSheet.create({
   liveShopName: { fontSize: 13, fontWeight: "800" },
   liveShopSub: { marginTop: 3, fontSize: 11 },
   liveShopViewers: { marginTop: 5, color: "#ff9fb4", fontSize: 11, fontWeight: "700" },
+  liveShopRightMeta: { alignItems: "flex-end", gap: 6 },
+  liveShopStatusPill: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 },
+  liveShopStatusLive: { backgroundColor: "rgba(30,191,116,0.25)", borderWidth: 1, borderColor: "rgba(50,209,132,0.55)" },
+  liveShopStatusOffline: { backgroundColor: "rgba(255,255,255,0.14)", borderWidth: 1, borderColor: "rgba(255,255,255,0.22)" },
+  liveShopStatusText: { color: "#ffffff", fontSize: 10, fontWeight: "800", letterSpacing: 0.3 },
   liveShopDistancePill: { borderRadius: 999, backgroundColor: "rgba(95,208,255,0.22)", paddingHorizontal: 10, paddingVertical: 5 },
   liveShopDistanceText: { color: "#62cfff", fontSize: 10, fontWeight: "800" },
   shopScheduleRoot: { flex: 1 },
@@ -5270,6 +5642,8 @@ const styles = StyleSheet.create({
   shopScheduleBackText: { color: "#fff", fontSize: 11, fontWeight: "800" },
   shopScheduleTitle: { marginTop: 12, fontSize: 22, fontWeight: "900", color: "#fff" },
   shopScheduleSubtitle: { marginTop: 4, fontSize: 12, color: "rgba(255,255,255,0.82)" },
+  shopScheduleMetaRow: { marginTop: 10, flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
+  shopScheduleMetaText: { color: "rgba(255,255,255,0.88)", fontSize: 11, fontWeight: "600" },
   shopScheduleTimes: { marginTop: 14, gap: 12, alignItems: "center" },
   shopScheduleSlot: {
     backgroundColor: "rgba(0,0,0,0.68)",
@@ -5327,6 +5701,47 @@ const styles = StyleSheet.create({
   },
   shopPickerTitle: { color: "#fff", fontSize: 18, fontWeight: "900" },
   shopPickerHint: { color: "#c9c9c9", fontSize: 12, marginTop: 8, marginBottom: 10 },
+  shopMapCanvas: {
+    height: 166,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.16)",
+    backgroundColor: "#101723",
+    marginBottom: 10,
+    overflow: "hidden",
+    position: "relative"
+  },
+  shopMapGrid: {
+    ...StyleSheet.absoluteFillObject,
+    borderColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1
+  },
+  shopMapPin: { position: "absolute", alignItems: "center", width: 68 },
+  shopMapPinDot: { width: 9, height: 9, borderRadius: 4.5, backgroundColor: "#7bc3ff", marginBottom: 2 },
+  shopMapPinDotLive: { backgroundColor: "#2bd07d" },
+  shopMapPinLabel: { color: "#d8e8ff", fontSize: 10, fontWeight: "700" },
+  shopMapCenterBadge: {
+    position: "absolute",
+    right: 12,
+    bottom: 10,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,45,85,0.2)",
+    borderWidth: 1,
+    borderColor: "rgba(255,45,85,0.6)",
+    paddingHorizontal: 8,
+    paddingVertical: 4
+  },
+  shopMapCenterText: { color: "#ffd8e2", fontSize: 10, fontWeight: "800" },
+  shopMapRegionRow: { gap: 8, paddingBottom: 10 },
+  shopMapRegionChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    paddingHorizontal: 10,
+    paddingVertical: 6
+  },
+  shopMapRegionText: { color: "#fff", fontSize: 11, fontWeight: "700" },
   shopPickerList: { marginTop: 10 },
   shopPickerListContent: { gap: 8, paddingBottom: 6 },
   shopPickerRow: {
@@ -5360,10 +5775,13 @@ const styles = StyleSheet.create({
     paddingVertical: 10
   },
   locationActionButtonText: { color: "#fff", fontSize: 11, fontWeight: "800" },
-  tabBar: { position: "absolute", bottom: 10, left: 12, right: 12, borderRadius: 16, backgroundColor: "rgba(10,10,10,0.92)", borderWidth: 1, borderColor: "rgba(255,255,255,0.12)", flexDirection: "row", justifyContent: "space-between", paddingVertical: 10, paddingHorizontal: 4 },
-  tabButton: { flex: 1, minWidth: 0, alignItems: "center", justifyContent: "center", gap: 4 },
+  tabBar: { position: "absolute", bottom: 10, left: 12, right: 12, borderRadius: 16, backgroundColor: "rgba(10,10,10,0.92)", borderWidth: 1, borderColor: "rgba(255,255,255,0.12)", flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 8, paddingHorizontal: 6, minHeight: 66 },
+  tabButton: { flex: 1, minWidth: 0, alignItems: "center", justifyContent: "center", paddingVertical: 4 },
+  tabIconWrap: { width: 22, height: 22, alignItems: "center", justifyContent: "center" },
+  tabAvatar: { width: 18, height: 18, borderRadius: 9, borderWidth: 1, borderColor: "rgba(255,255,255,0.35)" },
+  tabAvatarActive: { borderColor: "#8fc9ff", borderWidth: 1.5 },
   tabButtonPressed: { transform: [{ scale: 0.96 }], opacity: 0.9 },
-  tabLabel: { color: "rgba(255,255,255,0.65)", fontSize: 11, fontWeight: "700", textAlign: "center" },
+  tabLabel: { color: "rgba(255,255,255,0.65)", fontSize: 10.5, lineHeight: 13, fontWeight: "700", textAlign: "center", marginTop: 2 },
   roomRailBellCount: { color: "#ffe08f", fontSize: 10, fontWeight: "800" }
 });
 
